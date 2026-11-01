@@ -64,6 +64,10 @@ class Limits:
         if self.c.per_device[(device, "reply_preview")] >= self.s.replies_per_day * 4:
             raise KettuError(ErrorCode.DAILY_LIMIT, "You have drafted a lot of replies today. Come back tomorrow.")
 
+    def check_translate(self, device: str) -> None:
+        if self.c.per_device[(device, "translate")] >= self.s.translate_per_day:
+            raise KettuError(ErrorCode.DAILY_LIMIT, "You have translated a lot today. Come back tomorrow.")
+
     def check_speak(self, device: str, chars: int, kind: str = "reply_speak") -> None:
         if self.c.tts_chars + chars > self.s.daily_tts_chars_cap:
             raise KettuError(ErrorCode.SERVICE_BUDGET)

@@ -1,7 +1,7 @@
-from kettu.domain.models import ReplyDraft, Understanding
+from kettu.domain.models import Entity, ReplyDraft, Understanding
 from kettu.services.gnani import MockSpeech
 from kettu.services.llm import MockLLM
-from kettu.services.pipeline import Pipeline
+from kettu.services.pipeline import Pipeline, missing_facts
 
 
 class RecordingSpeech(MockSpeech):
@@ -19,13 +19,70 @@ class RecordingLLM(MockLLM):
         self.understand_calls = []
         self.reply_calls = []
 
-    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode):
+    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode,
+                         must_include=None):
         self.understand_calls.append(dict(want_gist=want_gist, want_translation=want_translation, mode=mode))
         return Understanding(translation="T" if want_translation else None, gist="G" if want_gist else None), 42
 
     async def reply(self, text, from_lang, to_lang):
         self.reply_calls.append((text, from_lang, to_lang))
         return ReplyDraft(target_text="X", back_translation="Y"), 7
+
+
+BN ="দাদা, কাল সকাল আটটায় দুটো ট্রাকে পঞ্চাশ বস্তা সিমেন্ট আসবে। রাকিবকে পাঁচশো টাকা অগ্রিম দিতে হবে।"
+TRUCKS = Entity(type="quantity", value="2 trucks", source_text="দুটো ট্রাকে", in_translation="2 trucks")
+BAGS = Entity(type="quantity", value="50 bags", source_text="পঞ্চাশ বস্তা", in_translation="50 bags")
+
+
+class DroppingLLM(MockLLM):
+    """First answer leaves the trucks out (and says it kept them); asked again with must_include, it puts them back."""
+
+    live = True
+
+    def __init__(self, fixes=True):
+        self.fixes = fixes
+        self.must = []
+
+    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode,
+                         must_include=None):
+        self.must.append(must_include)
+        if must_include and self.fixes:
+            text = "Brother, 50 bags of cement arrive tomorrow at 8 AM in 2 trucks."
+        else:
+            text = "Brother, 50 bags of cement arrive tomorrow at 8 AM."
+        return Understanding(translation=text, entities=[BAGS, TRUCKS]), 10
+
+
+async def test_dropped_fact_triggers_one_repair(settings):
+    llm = DroppingLLM()
+    u, missing, tokens = await Pipeline(settings, MockSpeech(), llm).understand_text(BN, "bn-IN", "en-IN", 9, False, True)
+    assert llm.must == [None, ["2 trucks (দুটো ট্রাকে)"]]
+    assert "2 trucks" in u.translation and missing == [] and tokens == 20
+
+
+async def test_fact_still_missing_is_reported(settings):
+    llm = DroppingLLM(fixes=False)
+    u, missing, _ = await Pipeline(settings, MockSpeech(), llm).understand_text(BN, "bn-IN", "en-IN", 9, False, True)
+    assert len(llm.must) == 2 and missing == ["2 trucks"]
+
+
+def test_fact_check_ignores_case_spacing_and_indic_digits():
+    e = Entity(type="quantity", value="৫০ বস্তা", source_text="x", in_translation="৫০  Bags")
+    assert missing_facts("they bring 50 bags today", [e]) == []
+    assert missing_facts("they bring cement", [e]) == [e]
+
+
+async def test_translate_text_to_another_language(settings):
+    p = Pipeline(settings, MockSpeech(), DroppingLLM())
+    out, _ = await p.translate_text(BN, "bn-IN", "hi-IN")
+    assert out.to_lang == "hi-IN" and "2 trucks" in out.translation and out.translation_live
+    same, tokens = await p.translate_text("নমস্কার", "bn-IN", "bn-IN")
+    assert same.translation == "নমস্কার" and tokens == 0
+
+
+async def test_without_a_key_the_result_says_translation_is_off(settings, short_note):
+    result, _ = await Pipeline(settings, RecordingSpeech(), MockLLM()).understand_note(short_note, "ml-IN")
+    assert result.translation_live is False and result.missing_facts == []
 
 
 async def test_long_note_is_chunked_with_context_and_gets_a_gist(settings, long_note):

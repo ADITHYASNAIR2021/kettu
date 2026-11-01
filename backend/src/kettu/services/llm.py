@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 class LLM(Protocol):
     async def understand(
         self, transcript: str, source_lang: str | None, my_lang: str, duration_s: float,
-        want_gist: bool, want_translation: bool, mode: str,
+        want_gist: bool, want_translation: bool, mode: str, must_include: list[str] | None = None,
     ) -> tuple[Understanding, int]: ...
 
     async def reply(self, text: str, from_lang: str, to_lang: str) -> tuple[ReplyDraft, int]: ...
@@ -45,6 +45,8 @@ def _to_understanding(data: dict, want_gist: bool, want_translation: bool, mode:
 
 
 class AnthropicLLM:
+    live = True
+
     def __init__(self, settings: Settings):
         self.s = settings
         self.client = anthropic.AsyncAnthropic(
@@ -81,9 +83,11 @@ class AnthropicLLM:
         except json.JSONDecodeError as exc:
             raise KettuError(ErrorCode.INTERNAL, "The translation came back garbled. Please try again.") from exc
 
-    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode):
+    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode,
+                         must_include=None):
         system = prompts.UNDERSTAND_SYSTEM.format(my_lang_name=languages.name(my_lang))
-        user = prompts.understand_user_message(source_lang, duration_s, want_gist, want_translation, mode, transcript)
+        user = prompts.understand_user_message(source_lang, duration_s, want_gist, want_translation, mode, transcript,
+                                               must_include)
         data, tokens = await self._json_call(system, user, prompts.UNDERSTAND_SCHEMA, max_tokens=8000)
         return _to_understanding(data, want_gist, want_translation, mode), tokens
 
@@ -101,6 +105,7 @@ class AnthropicLLM:
 
 
 class GeminiLLM:
+    live = True
     URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
     def __init__(self, settings: Settings):
@@ -145,9 +150,11 @@ class GeminiLLM:
         except (KeyError, IndexError, json.JSONDecodeError) as exc:
             raise KettuError(ErrorCode.INTERNAL, "The translation came back garbled. Please try again.") from exc
 
-    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode):
+    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode,
+                         must_include=None):
         system = prompts.UNDERSTAND_SYSTEM.format(my_lang_name=languages.name(my_lang))
-        user = prompts.understand_user_message(source_lang, duration_s, want_gist, want_translation, mode, transcript)
+        user = prompts.understand_user_message(source_lang, duration_s, want_gist, want_translation, mode, transcript,
+                                               must_include)
         data, tokens = await self._json_call(system, user, prompts.UNDERSTAND_SCHEMA, max_tokens=8000)
         return _to_understanding(data, want_gist, want_translation, mode), tokens
 
@@ -169,15 +176,18 @@ class GeminiLLM:
 
 
 class MockLLM:
-    """Deterministic stand-in so the app runs end to end without keys."""
+    """Stand-in so the app runs end to end without keys. It does not translate: it hands back the transcript,
+    labelled, and live=False tells the app to say translation is off rather than show it as a translation."""
 
-    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode):
+    live = False
+
+    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode,
+                         must_include=None):
         await asyncio.sleep(0.2)
         lang = languages.name(my_lang)
         u = Understanding(
-            translation=f"[{lang}] Brother, 50 bags of cement arrive tomorrow at 8 AM. Rakib needs ₹500 advance."
-            if want_translation else None,
-            gist=f"[{lang}] Cement arrives 8 AM tomorrow; pay Rakib ₹500 advance." if want_gist else None,
+            translation=f"[{lang}: translation off] {transcript}" if want_translation else None,
+            gist=f"[{lang}: summary off] {transcript[:120]}" if want_gist else None,
             entities=[
                 Entity(type="time", value="8 AM", source_text=_first(transcript, ["আটটায়", "आठ बजे", "എട്ടു മണിക്ക്", "eight"])),
                 Entity(type="amount", value="₹500", source_text=_first(transcript, ["পাঁচশো টাকা", "पाँच सौ रुपये"])),
@@ -206,6 +216,8 @@ def _first(text: str, options: list[str]) -> str:
 class FallbackLLM:
     """Tries each provider in order; moves on when one fails. Bad input is not retried elsewhere."""
 
+    live = True
+
     def __init__(self, providers: list[tuple[str, LLM]]):
         self.providers = providers
 
@@ -221,9 +233,10 @@ class FallbackLLM:
                 last = exc
         raise last or KettuError(ErrorCode.INTERNAL)
 
-    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode):
+    async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode,
+                         must_include=None):
         return await self._first("understand", transcript, source_lang, my_lang, duration_s, want_gist,
-                                 want_translation, mode)
+                                 want_translation, mode, must_include)
 
     async def reply(self, text, from_lang, to_lang):
         return await self._first("reply", text, from_lang, to_lang)

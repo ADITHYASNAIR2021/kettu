@@ -46,12 +46,13 @@ class Settings(BaseSettings):
     max_note_seconds: float = 180.0
     chunk_seconds: float = 28.0
     gist_min_seconds: float = 45.0
-    max_reply_chars: int = 400
+    max_reply_chars: int = 700  # about a minute spoken; Timbre takes up to 900 characters
 
     # Per device (or WhatsApp user) per IST day
     notes_per_day: int = 10
     replies_per_day: int = 5
     read_aloud_per_day: int = 10
+    translate_per_day: int = 30
     # Whole service per IST day
     daily_stt_seconds_cap: float = 6000.0
     daily_tts_chars_cap: int = 60000

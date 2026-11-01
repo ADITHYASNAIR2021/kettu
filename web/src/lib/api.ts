@@ -6,6 +6,7 @@ export type Entity = {
   type: "time" | "date" | "amount" | "quantity" | "name" | "place";
   value: string;
   source_text: string;
+  in_translation?: string;
 };
 
 export type OrderItem = { item: string; quantity: string; unit: string };
@@ -20,7 +21,17 @@ export type NoteResult = {
   entities: Entity[];
   order_items: OrderItem[] | null;
   same_language: boolean;
+  missing_facts: string[];
+  translation_live: boolean;
   timings_ms: Record<string, number>;
+};
+
+export type TextTranslation = {
+  to_lang: LangCode;
+  translation: string;
+  entities: Entity[];
+  missing_facts: string[];
+  translation_live: boolean;
 };
 
 export type JobState = {
@@ -32,7 +43,7 @@ export type JobState = {
 };
 
 export type ReplyDraft = { target_text: string; back_translation: string; source_text: string };
-export type Limits = { notes_left: number; replies_left: number; service_open: boolean };
+export type Limits = { notes_left: number; replies_left: number; service_open: boolean; translation_live?: boolean };
 export type Voice = "female" | "male";
 
 export class ApiError extends Error {
@@ -133,6 +144,21 @@ export async function previewReply(opts: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: opts.text ?? "", from_lang: opts.fromLang, to_lang: opts.toLang, device_id: opts.deviceId }),
+    }),
+  );
+}
+
+export async function translateText(opts: {
+  text: string;
+  fromLang: LangCode | null;
+  toLang: LangCode;
+  deviceId: string;
+}): Promise<TextTranslation> {
+  return parse(
+    await call("/v1/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: opts.text, from_lang: opts.fromLang, to_lang: opts.toLang, device_id: opts.deviceId }),
     }),
   );
 }

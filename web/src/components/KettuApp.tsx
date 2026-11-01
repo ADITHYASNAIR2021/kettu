@@ -37,7 +37,8 @@ export default function KettuApp() {
   const [notice, setNotice] = useState<string | null>(() =>
     shared && shared !== "1" ? translator(loadPrefs().uiLang)("share_missing") : null,
   );
-  const [sheet, setSheet] = useState<"reply" | "settings" | null>(null);
+  const [sheet, setSheet] = useState<"reply" | "compose" | "settings" | null>(null);
+  const [composeText, setComposeText] = useState("");
   const [dragging, setDragging] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const pendingShare = useRef<File | null>(null);
@@ -159,7 +160,8 @@ export default function KettuApp() {
         {!onboarded && <Onboarding />}
 
         {onboarded && view.name === "home" && (
-          <Home onAudio={process} orders={orders} setOrders={setOrders} limits={limits} notice={notice} />
+          <Home onAudio={process} orders={orders} setOrders={setOrders} limits={limits} notice={notice}
+                onCompose={() => { setComposeText(""); setSheet("compose"); }} />
         )}
 
         {onboarded && view.name === "working" && (
@@ -177,6 +179,11 @@ export default function KettuApp() {
             result={view.result}
             audio={audio}
             onReply={() => setSheet("reply")}
+            onSendOther={() => {
+              const r = view.result;
+              setComposeText(r.same_language ? r.transcript : r.translation_live !== false ? (r.translation ?? "") : "");
+              setSheet("compose");
+            }}
             onNew={() => { setAudio(null); setView({ name: "home" }); }}
           />
         )}
@@ -190,6 +197,17 @@ export default function KettuApp() {
         <ReplySheet
           from={prefs.myLang}
           to={view.result.detected_lang}
+          onClose={() => setSheet(null)}
+          repliesLeft={limits?.replies_left ?? null}
+          onSpent={() => refreshLimits(device)}
+        />
+      )}
+      {sheet === "compose" && prefs.myLang && (
+        <ReplySheet
+          compose
+          from={prefs.myLang}
+          to={prefs.myLang === "hi-IN" ? "en-IN" : "hi-IN"}
+          initialText={composeText}
           onClose={() => setSheet(null)}
           repliesLeft={limits?.replies_left ?? null}
           onSpent={() => refreshLimits(device)}

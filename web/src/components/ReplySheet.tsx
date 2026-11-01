@@ -10,12 +10,23 @@ import { Close, Download, Mic, Share, Speaker, Stop } from "./Icons";
 import { useObjectUrl } from "./useObjectUrl";
 import { mmss, useRecorder } from "./useRecorder";
 
-type Props = { from: LangCode; to: LangCode; onClose: () => void; repliesLeft: number | null; onSpent: () => void };
+type Props = {
+  from: LangCode;
+  to: LangCode;
+  onClose: () => void;
+  repliesLeft: number | null;
+  onSpent: () => void;
+  /** A new voice note of your own (not an answer to one), optionally starting from words you already have. */
+  compose?: boolean;
+  initialText?: string;
+};
 
-export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent }: Props) {
+export const MAX_REPLY_CHARS = 700;
+
+export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent, compose, initialText }: Props) {
   const { t, prefs, setPrefs, device } = useApp();
   const [to, setTo] = useState<LangCode>(initialTo);
-  const [text, setText] = useState("");
+  const [text, setText] = useState((initialText ?? "").slice(0, MAX_REPLY_CHARS));
   const [draft, setDraft] = useState<ReplyDraft | null>(null);
   const [audio, setAudio] = useState<Blob | null>(null);
   const audioUrl = useObjectUrl(audio);
@@ -67,14 +78,17 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent 
   return (
     <>
       <div className="sheet-backdrop" onClick={onClose} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={t("reply_title")}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={compose ? t("compose_title") : t("reply_title")}>
         <div className="sheet-inner">
           <div className="grab" />
           <div className="row">
-            <h2 className="title">{t("reply_title")}</h2>
+            <h2 className="title">{compose ? t("compose_title") : t("reply_title")}</h2>
             <span className="spacer" />
             <button className="icon-btn" onClick={onClose} aria-label={t("cancel")}><Close /></button>
           </div>
+          {compose && !draft && (
+            <p className="small" style={{ margin: 0 }}>{t("compose_hint", { lang: mine?.native ?? "" })}</p>
+          )}
 
           {!draft && (
             <>
@@ -109,7 +123,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent 
               <textarea
                 className="input"
                 rows={3}
-                maxLength={400}
+                maxLength={MAX_REPLY_CHARS}
                 lang={htmlLang(from)}
                 placeholder={t("placeholder")}
                 value={text}

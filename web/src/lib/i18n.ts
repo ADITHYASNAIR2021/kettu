@@ -97,6 +97,14 @@ const en = {
   listen: "Listen",
   stop_listening: "Stop",
   waking_up: "Kettu was asleep and is waking up. The first note can take up to a minute.",
+  translation_off: "Translation is switched off on this server (no AI key yet), so you see exactly what they said.",
+  missing_facts: "The translation may have left these out. Check them in what they said:",
+  read_in: "Read it in another language",
+  choose_lang: "Choose a language",
+  send_other: "Send it as a voice note in another language",
+  compose: "Say it in your language, send it in theirs",
+  compose_hint: "Speak or type in {lang}. Kettu makes a voice note in the language you pick.",
+  compose_title: "New voice note",
 };
 
 export type Key = keyof typeof en;
@@ -198,6 +206,14 @@ const ml: Dict = {
   listen: "കേൾക്കുക",
   stop_listening: "നിർത്തുക",
   waking_up: "Kettu ഉറക്കത്തിൽ നിന്ന് ഉണരുന്നു. ആദ്യത്തെ നോട്ടിന് ഒരു മിനിറ്റ് വരെ എടുക്കാം.",
+  translation_off: "ഈ സെർവറിൽ വിവർത്തനം ഇപ്പോൾ ഓഫാണ് (AI കീ ഇല്ല). അവർ പറഞ്ഞത് അതേപടി കാണാം.",
+  missing_facts: "വിവർത്തനത്തിൽ ഇവ വിട്ടുപോയിരിക്കാം. അവർ പറഞ്ഞതിൽ ഒന്ന് നോക്കൂ:",
+  read_in: "മറ്റൊരു ഭാഷയിൽ വായിക്കാം",
+  choose_lang: "ഭാഷ തിരഞ്ഞെടുക്കൂ",
+  send_other: "മറ്റൊരു ഭാഷയിൽ വോയ്സ് നോട്ടായി അയക്കാം",
+  compose: "നിങ്ങളുടെ ഭാഷയിൽ പറയൂ, അവരുടെ ഭാഷയിൽ അയക്കൂ",
+  compose_hint: "{lang}-ൽ പറയുകയോ ടൈപ്പ് ചെയ്യുകയോ ചെയ്യൂ. നിങ്ങൾ തിരഞ്ഞെടുക്കുന്ന ഭാഷയിൽ Kettu വോയ്സ് നോട്ട് ഉണ്ടാക്കും.",
+  compose_title: "പുതിയ വോയ്സ് നോട്ട്",
 };
 
 const hi: Dict = {
@@ -296,6 +312,14 @@ const hi: Dict = {
   listen: "सुनें",
   stop_listening: "रोकें",
   waking_up: "Kettu सो रहा था और अब जाग रहा है। पहले नोट में एक मिनट तक लग सकता है।",
+  translation_off: "इस सर्वर पर अनुवाद अभी बंद है (AI की नहीं है), इसलिए आपको वही दिख रहा है जो उन्होंने कहा।",
+  missing_facts: "अनुवाद में ये बातें छूट गई हो सकती हैं। उन्होंने जो कहा, उसमें देख लें:",
+  read_in: "किसी और भाषा में पढ़ें",
+  choose_lang: "भाषा चुनें",
+  send_other: "किसी और भाषा में वॉइस नोट भेजें",
+  compose: "अपनी भाषा में बोलें, उनकी भाषा में भेजें",
+  compose_hint: "{lang} में बोलें या लिखें। आप जो भाषा चुनेंगे, Kettu उसमें वॉइस नोट बनाएगा।",
+  compose_title: "नया वॉइस नोट",
 };
 
 const bn: Dict = {
@@ -394,6 +418,14 @@ const bn: Dict = {
   listen: "শুনুন",
   stop_listening: "থামান",
   waking_up: "Kettu ঘুমিয়ে ছিল, এখন জাগছে। প্রথম নোটে এক মিনিট পর্যন্ত লাগতে পারে।",
+  translation_off: "এই সার্ভারে অনুবাদ এখন বন্ধ (AI কী নেই), তাই উনি যা বলেছেন হুবহু দেখছেন।",
+  missing_facts: "অনুবাদে এগুলো বাদ পড়ে থাকতে পারে। উনি যা বলেছেন তাতে মিলিয়ে নিন:",
+  read_in: "অন্য ভাষায় পড়ুন",
+  choose_lang: "ভাষা বাছুন",
+  send_other: "অন্য ভাষায় ভয়েস নোট পাঠান",
+  compose: "নিজের ভাষায় বলুন, ওঁদের ভাষায় পাঠান",
+  compose_hint: "{lang}-য় বলুন বা লিখুন। আপনি যে ভাষা বাছবেন, Kettu সেই ভাষায় ভয়েস নোট বানাবে।",
+  compose_title: "নতুন ভয়েস নোট",
 };
 
 const DICTS: Record<UiLang, Dict> = { en, ml, hi, bn };

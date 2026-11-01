@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { Limits } from "@/lib/api";
 import { lang } from "@/lib/languages";
 import { useApp } from "./AppContext";
-import { Mic, Play, Stop, Upload } from "./Icons";
+import { Mic, Play, Speaker, Stop, Upload } from "./Icons";
 
 // Synthetic note (Gnani Timbre voice, fake names and amounts) so visitors can try Kettu without one of their own.
 const SAMPLE_URL = "/samples/site-worker-bengali.ogg";
@@ -17,9 +17,10 @@ type Props = {
   setOrders: (v: boolean) => void;
   limits: Limits | null;
   notice: string | null;
+  onCompose: () => void;
 };
 
-export function Home({ onAudio, orders, setOrders, limits, notice }: Props) {
+export function Home({ onAudio, orders, setOrders, limits, notice, onCompose }: Props) {
   const { t, prefs } = useApp();
   const file = useRef<HTMLInputElement>(null);
   const { canInstall, installed, platform, install } = useInstall();
@@ -123,6 +124,12 @@ export function Home({ onAudio, orders, setOrders, limits, notice }: Props) {
           </span>
         </label>
       </div>
+
+      <div className="divider">{t("or")}</div>
+
+      <button className="btn btn-leaf btn-block" onClick={onCompose}>
+        <Speaker /> {t("compose")}
+      </button>
 
       {limits && <p className="small" style={{ textAlign: "center", margin: 0 }}>{t("left_today", { n: limits.notes_left })}</p>}
     </section>

@@ -15,7 +15,7 @@ from pathlib import Path
 from kettu.config import Settings
 from kettu.domain import languages
 from kettu.domain.errors import ErrorCode, KettuError
-from kettu.domain.models import NoteResult, ReplyDraft, Transcript, Usage
+from kettu.domain.models import Entity, NoteResult, ReplyDraft, TextTranslation, Transcript, Understanding, Usage
 from kettu.services import audio
 from kettu.services.gnani import Gender, SpeechService
 from kettu.services.llm import LLM
@@ -37,6 +37,36 @@ def workdir(settings: Settings):
         yield path
     finally:
         shutil.rmtree(path, ignore_errors=True)
+
+
+_INDIC_DIGITS = str.maketrans({
+    chr(base + i): str(i)
+    for base in (0x0966, 0x09E6, 0x0A66, 0x0AE6, 0x0B66, 0x0BE6, 0x0C66, 0x0CE6, 0x0D66)
+    for i in range(10)
+})
+
+
+def _norm(text: str) -> str:
+    """Compare loosely: case, spacing and Indian-script digits (৫০ = 50) don't count as differences."""
+    return " ".join(text.translate(_INDIC_DIGITS).casefold().split())
+
+
+def grounded(entities: list[Entity], transcript: str) -> list[Entity]:
+    """Keep only facts whose source words really are in the transcript (the app highlights them there)."""
+    real = [e for e in entities if e.source_text and e.source_text in transcript]
+    return real or entities
+
+
+def missing_facts(translation: str | None, entities: list[Entity]) -> list[Entity]:
+    """Facts the model says it translated but that are not actually in the translation text."""
+    if not translation:
+        return []
+    have = _norm(translation)
+    return [e for e in entities if not e.in_translation.strip() or _norm(e.in_translation) not in have]
+
+
+def _unique(values) -> list[str]:
+    return list(dict.fromkeys(v for v in values if v))
 
 
 async def _notify(progress: Progress | None, stage: str) -> None:
@@ -101,29 +131,76 @@ class Pipeline:
         result = NoteResult(
             detected_lang=tr.detected_lang, my_lang=my_lang, duration_s=round(tr.duration_s, 1),
             transcript=tr.text, translation=None, gist=None, same_language=same,
+            translation_live=self.llm.live,
         )
         if want_translation or want_gist or mode == "orders":
             await _notify(progress, "understanding")
             t1 = time.perf_counter()
-            try:
-                u, tokens = await self.llm.understand(
-                    tr.text, tr.detected_lang, my_lang, tr.duration_s, want_gist, want_translation, mode
-                )
-            except KettuError as exc:
-                if not exc.retryable:
-                    raise
-                log.info("llm retry after %s", exc.code.value)
-                u, tokens = await self.llm.understand(
-                    tr.text, tr.detected_lang, my_lang, tr.duration_s, want_gist, want_translation, mode
-                )
+            u, missing, tokens = await self.understand_text(
+                tr.text, tr.detected_lang, my_lang, tr.duration_s, want_gist, want_translation, mode
+            )
             timings["llm"] = int((time.perf_counter() - t1) * 1000)
             usage.llm_tokens = tokens
             result.translation, result.gist = u.translation, u.gist
-            result.entities = [e for e in u.entities if e.source_text and e.source_text in tr.text] or u.entities
+            result.entities = u.entities
+            result.missing_facts = missing
             result.order_items = u.order_items
         timings["total"] = int((time.perf_counter() - t0) * 1000)
         result.timings_ms = timings
         return result, usage
+
+    async def _understand_once(self, text, source_lang, my_lang, duration_s, want_gist, want_translation, mode,
+                               must_include=None):
+        try:
+            return await self.llm.understand(text, source_lang, my_lang, duration_s, want_gist, want_translation,
+                                             mode, must_include)
+        except KettuError as exc:
+            if not exc.retryable:
+                raise
+            log.info("llm retry after %s", exc.code.value)
+            return await self.llm.understand(text, source_lang, my_lang, duration_s, want_gist, want_translation,
+                                             mode, must_include)
+
+    async def understand_text(
+        self, text: str, source_lang: str | None, my_lang: str, duration_s: float,
+        want_gist: bool, want_translation: bool, mode: str = "listen",
+    ) -> tuple[Understanding, list[str], int]:
+        """Translate (and summarise) a transcript, then check every fact heard made it into the translation.
+
+        If the model dropped an amount, time, count or name, it is asked once more with those facts listed;
+        whatever is still missing is returned so the app can point the reader at the original words.
+        """
+        u, tokens = await self._understand_once(text, source_lang, my_lang, duration_s, want_gist,
+                                                want_translation, mode)
+        u.entities = grounded(u.entities, text)
+        missing = missing_facts(u.translation, u.entities) if want_translation and self.llm.live else []
+        if missing:
+            log.info("translation dropped %d facts; asking again", len(missing))
+            must = [f"{e.value} ({e.source_text})" for e in missing]
+            try:
+                again, more = await self._understand_once(text, source_lang, my_lang, duration_s, want_gist,
+                                                          want_translation, mode, must)
+                tokens += more
+                again.entities = grounded(again.entities, text)
+                still = missing_facts(again.translation, again.entities)
+                if again.translation and len(still) < len(missing):
+                    u, missing = again, still
+            except KettuError as exc:
+                log.warning("repair pass failed (%s); keeping first translation", exc.code.value)
+        return u, _unique(e.value for e in missing), tokens
+
+    async def translate_text(self, text: str, source_lang: str | None, to_lang: str) -> tuple[TextTranslation, int]:
+        """A transcript the person already has, put into one more language of their choice."""
+        text = text.strip()
+        if not text:
+            raise KettuError(ErrorCode.BAD_REQUEST, "Nothing to translate.")
+        if source_lang and languages.same_language(source_lang, to_lang):
+            return TextTranslation(to_lang=to_lang, translation=text, translation_live=self.llm.live), 0
+        u, missing, tokens = await self.understand_text(text, source_lang, to_lang, 0.0, False, True)
+        return TextTranslation(
+            to_lang=to_lang, translation=u.translation or "", entities=u.entities, missing_facts=missing,
+            translation_live=self.llm.live,
+        ), tokens
 
     async def preview_reply(
         self, from_lang: str, to_lang: str, text: str | None = None, audio_path: Path | None = None,

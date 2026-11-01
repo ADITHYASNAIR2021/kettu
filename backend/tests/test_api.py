@@ -91,6 +91,16 @@ def test_read_aloud_has_its_own_allowance(client):
     assert client.get("/v1/limits", params={"device_id": device}).json()["replies_left"] == 0
 
 
+def test_translate_into_another_language(client):
+    body = {"text": "നാളെ രാവിലെ എട്ടു മണിക്ക്", "from_lang": "ml-IN", "to_lang": "bn-IN", "device_id": DEVICE}
+    resp = client.post("/v1/translate", json=body)
+    assert resp.status_code == 200, resp.text
+    out = resp.json()
+    assert out["to_lang"] == "bn-IN" and out["translation"] and out["translation_live"] is False
+    assert client.post("/v1/translate", json={**body, "to_lang": "xx"}).json()["error"]["code"] == "bad_request"
+    assert client.get("/v1/limits", params={"device_id": DEVICE}).json()["translation_live"] is False
+
+
 def test_spoken_reply_preview(client, short_note):
     with open(short_note, "rb") as f:
         resp = client.post("/v1/replies/preview",

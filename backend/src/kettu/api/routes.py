@@ -1,4 +1,4 @@
-"""REST API used by the PWA. Seven endpoints, as in the PRD, plus /v1/languages."""
+"""REST API used by the PWA. The seven endpoints from the PRD, plus /v1/translate and /v1/languages."""
 
 import asyncio
 import json
@@ -184,6 +184,28 @@ async def preview_reply(request: Request, ctx: Context = Depends(get_ctx)):
     return {**draft.model_dump(), "source_text": source_text}
 
 
+class TranslateIn(BaseModel):
+    text: str = Field(max_length=6000)
+    from_lang: str | None = None
+    to_lang: str
+    device_id: str
+
+
+@router.post("/v1/translate")
+async def translate(body: TranslateIn, ctx: Context = Depends(get_ctx)):
+    """Read a note's transcript in one more language (any of the ten), not just your own."""
+    device = _device(body.device_id)
+    to_lang = _lang(body.to_lang, "to_lang")
+    from_lang = body.from_lang if languages.is_supported(body.from_lang) else None
+    ctx.limits.check_translate(device)
+    t0 = time.perf_counter()
+    out, tokens = await ctx.pipeline.translate_text(body.text, from_lang, to_lang)
+    ctx.limits.record(device, "translate")
+    ctx.store.log_usage(device_id=device, kind="translate", llm_tokens=tokens, my_lang=to_lang, detected_lang=from_lang,
+                        latency_ms=int((time.perf_counter() - t0) * 1000), status="ok")
+    return out.model_dump()
+
+
 class SpeakIn(BaseModel):
     target_text: str = Field(max_length=2000)
     to_lang: str
@@ -236,7 +258,7 @@ async def feedback(body: FeedbackIn, ctx: Context = Depends(get_ctx)):
 
 @router.get("/v1/limits")
 async def limits(device_id: str = Query(...), ctx: Context = Depends(get_ctx)):
-    return ctx.limits.remaining(_device(device_id))
+    return {**ctx.limits.remaining(_device(device_id)), "translation_live": ctx.llm.live}
 
 
 @router.get("/v1/languages")

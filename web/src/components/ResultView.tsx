@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sendFeedback, speakReply, type Entity, type NoteResult } from "@/lib/api";
-import { htmlLang, lang, type LangCode } from "@/lib/languages";
+import {
+  ApiError, sendFeedback, speakReply, translateText, type Entity, type NoteResult, type TextTranslation,
+} from "@/lib/api";
+import { errorText } from "@/lib/i18n";
+import { htmlLang, lang, LANGUAGES, type LangCode } from "@/lib/languages";
 import { useApp } from "./AppContext";
 import { Copy, Reply, Speaker, Stop } from "./Icons";
 import { useObjectUrl } from "./useObjectUrl";
@@ -82,9 +85,77 @@ function ReadAloud({ text, lang: code }: { text: string; lang: LangCode }) {
   );
 }
 
-type Props = { result: NoteResult; audio: Blob | null; onReply: () => void; onNew: () => void };
+/** Amounts, times, counts or names the server found in the note but not in the translation. */
+function MissingFacts({ facts }: { facts: string[] }) {
+  const { t } = useApp();
+  if (!facts.length) return null;
+  return (
+    <div className="alert" role="status">
+      <span>⚠ {t("missing_facts")} <strong>{facts.join(" · ")}</strong></span>
+    </div>
+  );
+}
 
-export function ResultView({ result, audio, onReply, onNew }: Props) {
+/** Read the same note in any of the ten languages, not only your own. */
+function OtherLanguage({ result }: { result: NoteResult }) {
+  const { t, device } = useApp();
+  const [to, setTo] = useState<LangCode | "">("");
+  const [out, setOut] = useState<TextTranslation | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const latest = useRef<string>("");
+
+  const pick = async (code: LangCode | "") => {
+    latest.current = code;
+    setTo(code);
+    setOut(null);
+    setError(null);
+    if (!code) return;
+    setBusy(true);
+    try {
+      const res = await translateText({ text: result.transcript, fromLang: result.detected_lang, toLang: code, deviceId: device });
+      if (latest.current === code) setOut(res);
+    } catch (e) {
+      if (latest.current === code) setError(e instanceof ApiError ? errorText(t, e.code, e.message) : t("err_offline"));
+    } finally {
+      if (latest.current === code) setBusy(false);
+    }
+  };
+
+  const choices = LANGUAGES.filter((l) => l.code !== result.my_lang && l.code !== result.detected_lang);
+
+  return (
+    <div className="card stack">
+      <label className="stack" style={{ gap: 6 }}>
+        <span className="eyebrow">{t("read_in")}</span>
+        <select className="input" value={to} onChange={(e) => pick(e.target.value as LangCode | "")}>
+          <option value="">{t("choose_lang")}</option>
+          {choices.map((l) => (
+            <option key={l.code} value={l.code}>{l.native} · {l.name}</option>
+          ))}
+        </select>
+      </label>
+      {busy && <p className="small" style={{ margin: 0 }}>…</p>}
+      {out && !out.translation_live && <div className="alert calm">{t("translation_off")}</div>}
+      {out && out.translation_live && to && (
+        <>
+          <div className="row">
+            <p className="eyebrow">{t("in_lang", { lang: lang(to)?.native ?? "" })}</p>
+            <span className="spacer" />
+            <ReadAloud text={out.translation.length <= 900 ? out.translation : ""} lang={to} />
+          </div>
+          <p className="translation" lang={htmlLang(to)}>{out.translation}</p>
+          <MissingFacts facts={out.missing_facts} />
+        </>
+      )}
+      {error && <div className="alert" role="alert">{error}</div>}
+    </div>
+  );
+}
+
+type Props = { result: NoteResult; audio: Blob | null; onReply: () => void; onSendOther: () => void; onNew: () => void };
+
+export function ResultView({ result, audio, onReply, onSendOther, onNew }: Props) {
   const { t, device } = useApp();
   const [active, setActive] = useState<number | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -96,6 +167,7 @@ export function ResultView({ result, audio, onReply, onNew }: Props) {
   const mine = lang(result.my_lang);
   const segs = useMemo(() => segments(result.transcript, result.entities), [result]);
   const canReply = Boolean(result.detected_lang && !result.same_language);
+  const live = result.translation_live !== false;
 
   const copy = async (key: string, text: string) => {
     try {
@@ -139,7 +211,9 @@ export function ResultView({ result, audio, onReply, onNew }: Props) {
         </div>
       )}
 
-      {result.translation ? (
+      {!live && !result.same_language ? (
+        <div className="alert calm">{t("translation_off")}</div>
+      ) : result.translation ? (
         <div className="card stack">
           <div className="row">
             <p className="eyebrow">{t("in_lang", { lang: mine?.native ?? "" })}</p>
@@ -154,6 +228,8 @@ export function ResultView({ result, audio, onReply, onNew }: Props) {
       ) : (
         result.same_language && <div className="alert calm">✓ {t("already", { lang: mine?.native ?? "" })}</div>
       )}
+
+      {live && <MissingFacts facts={result.missing_facts ?? []} />}
 
       {result.entities.length > 0 && (
         <div className="chips" role="group">
@@ -194,7 +270,7 @@ export function ResultView({ result, audio, onReply, onNew }: Props) {
         </div>
       )}
 
-      <details className="card orig" open={!result.translation || active !== null}>
+      <details className="card orig" open={!result.translation || !live || active !== null}>
         <summary>
           <span className="eyebrow">{t("original")} · {src?.native}</span>
         </summary>
@@ -212,11 +288,16 @@ export function ResultView({ result, audio, onReply, onNew }: Props) {
         </div>
       </details>
 
+      <OtherLanguage result={result} />
+
       {canReply && (
         <button className="btn btn-primary btn-block" onClick={onReply}>
           <Reply /> {t("reply_in", { lang: src?.native ?? "" })}
         </button>
       )}
+      <button className={`btn btn-block ${canReply ? "btn-ghost" : "btn-primary"}`} onClick={onSendOther}>
+        <Speaker /> {t("send_other")}
+      </button>
 
       <div className="card stack" style={{ padding: 16 }}>
         <div className="feedback">
