@@ -1,0 +1,48 @@
+# Render Blueprint: the Kettu API (FastAPI + ffmpeg) as one free Docker web service in Singapore.
+# Render → New → Blueprint → pick this repo. It asks for every value marked sync: false.
+services:
+  - type: web
+    name: kettu-api
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      # secrets: entered in the Render dashboard, never committed
+      - key: GNANI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      # your Vercel address, e.g. https://kettu.vercel.app (comma-separate several)
+      - key: CORS_ORIGINS
+        sync: false
+      # settings
+      - key: SPEECH_PROVIDER
+        value: gnani
+      - key: PRISMA_MODEL
+        value: prisma-v3.0
+      - key: TIMBRE_MODEL
+        value: timbre-v3.0
+      - key: TIMBRE_FALLBACK_MODEL
+        value: timbre-v2.5
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_FALLBACK_PROVIDER
+        value: anthropic
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: NOTES_PER_DAY
+        value: "10"
+      - key: REPLIES_PER_DAY
+        value: "5"
+      - key: DAILY_STT_SECONDS_CAP
+        value: "6000"
+      - key: DAILY_TTS_CHARS_CAP
+        value: "60000"
