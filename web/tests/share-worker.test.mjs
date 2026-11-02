@@ -4,10 +4,11 @@ import { readFile } from "node:fs/promises";
 import { webcrypto } from "node:crypto";
 import vm from "node:vm";
 
-const source = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
+const source = (await readFile(new URL("../src/pwa/worker.js", import.meta.url), "utf8"))
+  .replace('"__BUILD_ID__"', '"test-build"').replace('["__PRECACHE__"]', '["/", "/_next/static/app.js"]');
 const origin = "https://kettu.example";
 
-function worker() {
+function worker({ offline = false, installFails = false } = {}) {
   const buckets = new Map();
   const listeners = new Map();
   const keyFor = (key) => new URL(typeof key === "string" ? key : key.url, origin).href;
@@ -16,6 +17,10 @@ function worker() {
       if (!buckets.has(name)) buckets.set(name, new Map());
       const data = buckets.get(name);
       return {
+        async addAll(keys) {
+          if (installFails) throw new Error("Asset unavailable");
+          for (const key of keys) data.set(keyFor(key), new Response(key));
+        },
         async put(key, value) { data.set(keyFor(key), value); },
         async match(key) { return data.get(keyFor(key))?.clone(); },
         async delete(key) { return data.delete(keyFor(key)); },
@@ -24,13 +29,26 @@ function worker() {
     },
     async keys() { return [...buckets.keys()]; },
     async delete(name) { return buckets.delete(name); },
+    async match(key) {
+      for (const data of buckets.values()) if (data.has(keyFor(key))) return data.get(keyFor(key)).clone();
+    },
   };
   vm.runInNewContext(source, {
-    self: { location: { origin }, clients: { claim: async () => {} }, addEventListener: (name, fn) => listeners.set(name, fn) },
+    self: { location: { origin }, skipWaiting: async () => {}, clients: { claim: async () => {} }, addEventListener: (name, fn) => listeners.set(name, fn) },
     caches, Response, Request, URL, crypto: webcrypto, Date,
+    fetch: async () => { if (offline) throw new Error("Offline"); return new Response("network"); },
   });
   return {
     caches, buckets,
+    async install() {
+      let pending; listeners.get("install")({ waitUntil(value) { pending = value; } }); await pending;
+    },
+    async fetch(path, mode) {
+      let response;
+      listeners.get("fetch")({ request: { url: new URL(path, origin).href, method: "GET", mode },
+        respondWith(value) { response = value; }, waitUntil() {} });
+      return await response;
+    },
     async share(file) {
       const form = new FormData();
       form.append("audio", file, "note.ogg");
@@ -81,9 +99,28 @@ test("activation expires abandoned audio and keeps other applications' caches", 
   await cache.put("/recent", new Response("recent", { headers: { "X-Shared-At": String(Date.now()) } }));
   await app.caches.open("another-app");
   await app.caches.open("kettu-shell-v1");
+  await app.caches.open("kettu-shell-v2");
   await app.activate();
   assert.equal(await cache.match("/old"), undefined);
   assert.ok(await cache.match("/recent"));
   assert.ok(app.buckets.has("another-app"));
   assert.equal(app.buckets.has("kettu-shell-v1"), false);
+  assert.ok(app.buckets.has("kettu-shell-v2"));
+});
+
+test("offline navigation and lazy application chunks come from the public precache", async () => {
+  const app = worker({ offline: true });
+  await app.install();
+  assert.equal(await (await app.fetch("/?shared=example", "navigate")).text(), "/");
+  assert.equal(await (await app.fetch("/_next/static/app.js")).text(), "/_next/static/app.js");
+});
+
+test("API responses and private recordings are never handled by the shell cache", async () => {
+  const app = worker(); await app.install();
+  for (const path of ["https://api.example/jobs/123", "/api/jobs/123", "/shared-audio/secret", "/recording.ogg"])
+    assert.equal(await app.fetch(path), undefined);
+});
+
+test("an incomplete precache fails installation rather than replacing the working worker", async () => {
+  await assert.rejects(worker({ installFails: true }).install(), /Asset unavailable/);
 });

@@ -11,7 +11,7 @@ import httpx
 from kettu.config import Settings
 from kettu.domain import languages
 from kettu.domain.errors import ErrorCode, KettuError
-from kettu.domain.models import Entity, OrderItem, ReplyDraft, Understanding
+from kettu.domain.models import ActionItem, Entity, OrderItem, ReplyDraft, Understanding
 from kettu.services import prompts
 
 log = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def _to_understanding(data: dict, want_gist: bool, want_translation: bool, mode:
             raise KettuError(ErrorCode.INTERNAL, "The translation came back garbled. Please try again.")
     if want_translation and not (data.get("translation") or "").strip():
         raise KettuError(ErrorCode.INTERNAL, "No translation was returned. Please try again.")
-    for key in ("entities", "order_items"):
+    for key in ("entities", "order_items", "action_items"):
         if data.get(key) is not None and not isinstance(data[key], list):
             raise KettuError(ErrorCode.INTERNAL, "The translation came back garbled. Please try again.")
     entities = []
@@ -51,11 +51,19 @@ def _to_understanding(data: dict, want_gist: bool, want_translation: bool, mode:
             items.append(OrderItem(**item))
         except (TypeError, ValueError):
             continue
+    actions = []
+    if mode in ("actions", "orders"):
+        for item in (data.get("action_items") or [])[:8]:
+            try:
+                actions.append(ActionItem.model_validate(item))
+            except (TypeError, ValueError):
+                continue
     return Understanding(
         translation=(data.get("translation") or "").strip() or None if want_translation else None,
         gist=(data.get("gist") or "").strip() or None if want_gist else None,
         entities=entities,
         order_items=items if mode == "orders" else None,
+        action_items=actions,
     )
 
 

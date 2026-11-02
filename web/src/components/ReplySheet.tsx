@@ -25,10 +25,10 @@ type Props = {
 export const MAX_REPLY_CHARS = 700;
 
 export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent, compose, initialText }: Props) {
-  const { t, prefs, setPrefs, device } = useApp();
+  const { t, prefs, setPrefs, device, online } = useApp();
   const dialog = useDialog(onClose);
   const [to, setTo] = useState<LangCode>(initialTo);
-  const [text, setText] = useState((initialText ?? "").slice(0, MAX_REPLY_CHARS));
+  const [text, setText] = useState(initialText ?? "");
   const [draft, setDraft] = useState<ReplyDraft | null>(null);
   const [audio, setAudio] = useState<Blob | null>(null);
   const audioUrl = useObjectUrl(audio);
@@ -38,6 +38,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
   const fail = (e: unknown) => setError(e instanceof ApiError ? errorText(t, e.code, e.message) : t("err_offline"));
 
   const translate = async (opts: { text?: string; audio?: Blob }) => {
+    if (!online || (opts.text?.length ?? 0) > MAX_REPLY_CHARS) return;
     setError(null);
     setBusy("translate");
     try {
@@ -54,7 +55,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
   const rec = useRecorder((blob) => translate({ audio: blob }), 60);
 
   const speak = async () => {
-    if (!draft) return;
+    if (!draft || !online) return;
     setError(null);
     setBusy("speak");
     try {
@@ -91,7 +92,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
               <label className="stack" style={{ gap: 6 }}>
                 <span className="eyebrow">{t("reply_to")}</span>
                 <select className="input" value={to} disabled={busy !== null || rec.recording} onChange={(e) => setTo(e.target.value as LangCode)}>
-                  {LANGUAGES.filter((l) => l.code !== from).map((l) => (
+                  {LANGUAGES.filter((l) => l.code !== from || l.code === initialTo).map((l) => (
                     <option key={l.code} value={l.code}>{l.native} · {l.name}</option>
                   ))}
                 </select>
@@ -100,7 +101,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
               <p style={{ margin: 0, fontWeight: 600 }}>{t("type_or_speak", { lang: mine?.native ?? "" })}</p>
 
               <div className="card rec" style={{ padding: 14 }}>
-                <button className="rec-btn" data-on={rec.recording} onClick={rec.toggle} disabled={busy !== null}
+                <button className="rec-btn" data-on={rec.recording} onClick={rec.toggle} disabled={busy !== null || (!online && !rec.recording)}
                         aria-label={rec.recording ? t("stop") : t("speak")}>
                   {rec.recording ? <Stop size={28} /> : <Mic size={30} />}
                 </button>
@@ -126,7 +127,8 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
                 value={text}
                 onChange={(e) => setText(e.target.value)}
               />
-              <button className="btn btn-primary btn-block" disabled={!text.trim() || busy !== null || rec.recording}
+              <span className="small">{text.length}/700 {text.length > 700 ? t("confirmation_too_long") : ""}</span>
+              <button className="btn btn-primary btn-block" disabled={!online || text.length > 700 || !text.trim() || busy !== null || rec.recording}
                       onClick={() => translate({ text })}>
                 {busy === "translate" ? "…" : t("translate")}
               </button>
@@ -150,7 +152,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
                   </button>
                 ))}
               </div>
-              <button className="btn btn-leaf btn-block" onClick={speak} disabled={busy !== null || repliesLeft === 0}>
+              <button className="btn btn-leaf btn-block" onClick={speak} disabled={!online || busy !== null || repliesLeft === 0}>
                 <Speaker /> {busy === "speak" ? t("making_voice") : t("make_voice")}
               </button>
               <button className="btn btn-ghost btn-block" onClick={() => setDraft(null)} disabled={busy !== null}>

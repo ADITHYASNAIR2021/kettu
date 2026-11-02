@@ -8,6 +8,14 @@ Architecture, flows and trade-offs: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 Review findings, verification evidence and remaining deployment work: [docs/REVIEW.md](docs/REVIEW.md).
 
+## From a note to a checked action
+
+After reading a note, use **Correct the transcript** to fix a misheard word or the spoken language and update the translation. **Make an action card** pulls out tasks with quantities, responsible people and timing; missing details stay blank. Every suggested field has source words you can check, and the card can be edited, checked off and copied.
+
+**Need to check a detail?** opens a date/time, quantity or repeat question in the reply composer. Edit the question, review its translation and back-translation, then choose whether to make a voice reply. Nothing is sent automatically.
+
+Cards and corrections stay in the current result, without adding database storage. Details and verification: [docs/FEATURES.md](docs/FEATURES.md).
+
 ```
 web/       Next.js 16 PWA (share target, upload, recorder, reply flow) → Vercel
 backend/   FastAPI API + WhatsApp bot (ffmpeg, Prisma, Timbre, LLM, queue, limits) → Render
@@ -102,6 +110,8 @@ One instance (min 1, max 1) on purpose: the job queue and the Gnani request gate
 **Monitoring.** Point an uptime check at `/healthz` (cheap) and `/healthz?deep=1` (checks Gnani, the LLM and Supabase). Progress numbers for the post: `select * from kettu_stats;` and `select * from kettu_thumbs;` in Supabase.
 
 ## What it does well, and what it does not (yet)
+
+The installable release adds discoverable installation, device-only saved cards, checked confirmation drafts and recovery after refresh. See [release behavior, verification and device-test checklist](docs/INSTALLABLE-RELEASE.md).
 
 * Handles notes up to 3 minutes: split at pauses into ≤ 28 s chunks, each sent to Prisma with the previous text for context.
 * Same per-person limits on both channels: 10 notes and 5 voice replies a day, plus a whole-service daily budget with a waitlist message instead of an error.

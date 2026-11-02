@@ -9,7 +9,6 @@ import { Mic, Play, Speaker, Stop, Upload } from "./Icons";
 // Synthetic note (Gnani Timbre voice, fake names and amounts) so visitors can try Kettu without one of their own.
 const SAMPLE_URL = "/samples/site-worker-bengali.ogg";
 import { mmss, useRecorder } from "./useRecorder";
-import { useInstall } from "./useInstall";
 
 type Props = {
   onAudio: (blob: Blob, filename: string) => void;
@@ -18,12 +17,13 @@ type Props = {
   limits: Limits | null;
   notice: string | null;
   onCompose: () => void;
+  onSaved: () => void;
+  noteBlocked: boolean;
 };
 
-export function Home({ onAudio, orders, setOrders, limits, notice, onCompose }: Props) {
-  const { t, prefs } = useApp();
+export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, onSaved, noteBlocked }: Props) {
+  const { t, prefs, online } = useApp();
   const file = useRef<HTMLInputElement>(null);
-  const { canInstall, installed, platform, install } = useInstall();
   const rec = useRecorder((blob) => onAudio(blob, `recording${blob.type.includes("mp4") ? ".m4a" : ".webm"}`));
   const mine = lang(prefs.myLang);
   const [loadingSample, setLoadingSample] = useState(false);
@@ -63,15 +63,6 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose }: 
           <li className="step">{t("how_2")}</li>
           <li className="step">{t("how_3")}</li>
         </ol>
-        {!installed && platform !== "desktop" && (
-          <div className="alert calm" style={{ flexDirection: "column", gap: 10 }}>
-            <strong>{t("install_title")}</strong>
-            <span>{platform === "ios" ? t("install_ios") : t("install_body")}</span>
-            {canInstall && (
-              <button className="btn btn-leaf btn-sm" onClick={install}>{t("install_btn")}</button>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="divider">{t("or")}</div>
@@ -88,11 +79,11 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose }: 
             e.target.value = "";
           }}
         />
-        <button className="btn btn-primary btn-block" onClick={() => file.current?.click()}>
+        <button className="btn btn-primary btn-block" disabled={!online || noteBlocked || rec.recording} onClick={() => file.current?.click()}>
           <Upload /> {t("upload")}
         </button>
 
-        <button className="btn btn-ghost btn-block sample-btn" onClick={trySample} disabled={loadingSample}>
+        <button className="btn btn-ghost btn-block sample-btn" onClick={trySample} disabled={loadingSample || !online || noteBlocked || rec.recording}>
           <Play /> {t("try_sample")}
         </button>
         <p className="small" style={{ margin: "-4px 4px 0" }}>{t("sample_hint")}</p>
@@ -103,6 +94,7 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose }: 
             className="rec-btn"
             data-on={rec.recording}
             onClick={rec.toggle}
+            disabled={!rec.recording && (!online || noteBlocked)}
             aria-label={rec.recording ? t("stop") : t("record")}
           >
             {rec.recording ? <Stop size={28} /> : <Mic size={30} />}
@@ -134,9 +126,10 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose }: 
 
       <div className="divider">{t("or")}</div>
 
-      <button className="btn btn-leaf btn-block" onClick={onCompose}>
+      <button className="btn btn-leaf btn-block" onClick={onCompose} disabled={!online || rec.recording}>
         <Speaker /> {t("compose")}
       </button>
+      <button className="btn btn-ghost btn-block" onClick={onSaved}>{t("saved_cards")}</button>
 
       {limits && <p className="small" style={{ textAlign: "center", margin: 0 }}>{t("left_today", { n: limits.notes_left })}</p>}
     </section>

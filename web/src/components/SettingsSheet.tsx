@@ -6,6 +6,7 @@ import { LANGUAGES, type LangCode } from "@/lib/languages";
 import { useApp } from "./AppContext";
 import { Close } from "./Icons";
 import { useDialog } from "./useDialog";
+import { InstallButton } from "./Install";
 
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const { t, prefs, setPrefs } = useApp();
@@ -30,6 +31,8 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
             <span className="spacer" />
             <button className="icon-btn" onClick={onClose} aria-label={t("done")}><Close /></button>
           </div>
+
+          <InstallButton />
 
           <label className="stack" style={{ gap: 6 }}>
             <span className="eyebrow">{t("my_language")}</span>

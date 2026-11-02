@@ -10,6 +10,8 @@ export type Entity = {
 };
 
 export type OrderItem = { item: string; quantity: string; unit: string };
+export type ActionDetail = { value: string; source_text: string };
+export type ActionItem = { task: ActionDetail; quantity: ActionDetail; person: ActionDetail; deadline: ActionDetail };
 
 export type NoteResult = {
   detected_lang: LangCode | null;
@@ -25,7 +27,17 @@ export type NoteResult = {
   translation_live: boolean;
   speech_live?: boolean;
   timings_ms: Record<string, number>;
+  action_items?: ActionItem[];
+  actions_reviewed?: boolean;
+  original_transcript?: string;
+  transcript_edited?: boolean;
+  revision?: number;
 };
+
+export type NoteReview = Pick<NoteResult,
+  "transcript" | "detected_lang" | "my_lang" | "translation" | "gist" | "entities" |
+  "missing_facts" | "order_items" | "same_language" | "translation_live"
+> & { action_items: ActionItem[]; actions_reviewed: boolean };
 
 export type TextTranslation = {
   to_lang: LangCode;
@@ -68,8 +80,11 @@ async function parse<T>(resp: Response): Promise<T> {
 }
 
 async function call(input: string, init?: RequestInit): Promise<Response> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) throw new ApiError("offline", "Reconnect to use AI processing.");
   try {
-    return await fetch(`${API_URL}${input}`, { ...init, signal: init?.signal ?? AbortSignal.timeout(120_000) });
+    const timeout = AbortSignal.timeout(120_000);
+    const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    return await fetch(`${API_URL}${input}`, { ...init, signal });
   } catch (error) {
     if (error instanceof DOMException && error.name === "TimeoutError") {
       throw new ApiError("model_timeout", "Kettu took too long to respond. Please try again.");
@@ -95,8 +110,8 @@ export async function submitNote(opts: {
   return parse(await call("/v1/notes", { method: "POST", body: form }));
 }
 
-export async function getJob(jobId: string): Promise<JobState> {
-  return parse(await call(`/v1/jobs/${jobId}`, { cache: "no-store" }));
+export async function getJob(jobId: string, signal?: AbortSignal): Promise<JobState> {
+  return parse(await call(`/v1/jobs/${jobId}`, { cache: "no-store", signal }));
 }
 
 /** Polls every second until the job is done; reports queue position and stage on the way. */
@@ -112,7 +127,7 @@ export async function waitForJob(
     if (signal?.aborted) throw new ApiError("aborted", "Cancelled.");
     let state: JobState;
     try {
-      state = await getJob(jobId);
+      state = await getJob(jobId, signal);
       misses = 0;
     } catch (e) {
       if (e instanceof ApiError && e.code === "offline" && ++misses < 10) {
@@ -167,6 +182,24 @@ export async function translateText(opts: {
       body: JSON.stringify({ text: opts.text, from_lang: opts.fromLang, to_lang: opts.toLang, device_id: opts.deviceId }),
     }),
   );
+}
+
+export async function reviewNote(opts: {
+  text: string;
+  sourceLang: LangCode | null;
+  myLang: LangCode;
+  duration: number;
+  mode: "listen" | "orders";
+  deviceId: string;
+  signal?: AbortSignal;
+}): Promise<NoteReview> {
+  return parse(await call("/v1/notes/review", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal: opts.signal,
+    body: JSON.stringify({ text: opts.text, source_lang: opts.sourceLang, my_lang: opts.myLang,
+      duration_s: opts.duration, mode: opts.mode, device_id: opts.deviceId }),
+  }));
 }
 
 export async function speakReply(opts: {

@@ -1,0 +1,122 @@
+[
+  {
+    "id": "en-quantity",
+    "language": "en-IN",
+    "text": "Maya, please bring sixty bags of cement tomorrow at eight.",
+    "task": "Bring cement",
+    "quantity": "60 bags",
+    "person": "Maya",
+    "deadline": "Tomorrow, 8 AM",
+    "noise": false
+  },
+  {
+    "id": "en-condition",
+    "language": "en-IN",
+    "text": "If it rains, do not send the truck before Friday.",
+    "task": "If it rains, do not send the truck before Friday",
+    "quantity": "1 truck",
+    "person": "",
+    "deadline": "Not before Friday",
+    "noise": true
+  },
+  {
+    "id": "en-negation",
+    "language": "en-IN",
+    "text": "Do not pay five hundred rupees until the delivery arrives.",
+    "task": "Do not pay until the delivery arrives",
+    "quantity": "₹500",
+    "person": "",
+    "deadline": "After delivery",
+    "noise": false
+  },
+  {
+    "id": "hi-quantity",
+    "language": "hi-IN",
+    "text": "मीरा, कल सुबह आठ बजे सीमेंट की साठ बोरी भेजिए।",
+    "task": "सीमेंट भेजिए",
+    "quantity": "६० बोरी",
+    "person": "मीरा",
+    "deadline": "कल सुबह ८ बजे",
+    "noise": false
+  },
+  {
+    "id": "hi-codemix",
+    "language": "hi-IN",
+    "text": "अगर बारिश हो तो delivery शुक्रवार तक रोकिए।",
+    "task": "अगर बारिश हो तो delivery रोकिए",
+    "quantity": "",
+    "person": "",
+    "deadline": "शुक्रवार तक",
+    "noise": true
+  },
+  {
+    "id": "hi-negation",
+    "language": "hi-IN",
+    "text": "सामान आने से पहले पाँच सौ रुपये मत दीजिए।",
+    "task": "सामान आने से पहले पैसे मत दीजिए",
+    "quantity": "₹५००",
+    "person": "",
+    "deadline": "सामान आने के बाद",
+    "noise": false
+  },
+  {
+    "id": "ml-quantity",
+    "language": "ml-IN",
+    "text": "മായ, നാളെ രാവിലെ എട്ടു മണിക്ക് അറുപത് ചാക്ക് സിമന്റ് അയക്കൂ.",
+    "task": "സിമന്റ് അയക്കുക",
+    "quantity": "60 ചാക്ക്",
+    "person": "മായ",
+    "deadline": "നാളെ രാവിലെ 8 മണിക്ക്",
+    "noise": false
+  },
+  {
+    "id": "ml-codemix",
+    "language": "ml-IN",
+    "text": "മഴ പെയ്താൽ delivery വെള്ളിയാഴ്ച വരെ നിർത്തിവയ്ക്കൂ.",
+    "task": "മഴ പെയ്താൽ delivery നിർത്തിവയ്ക്കുക",
+    "quantity": "",
+    "person": "",
+    "deadline": "വെള്ളിയാഴ്ച വരെ",
+    "noise": true
+  },
+  {
+    "id": "ml-negation",
+    "language": "ml-IN",
+    "text": "സാധനം എത്തും മുമ്പ് അഞ്ഞൂറ് രൂപ കൊടുക്കരുത്.",
+    "task": "സാധനം എത്തും മുമ്പ് പണം കൊടുക്കരുത്",
+    "quantity": "₹500",
+    "person": "",
+    "deadline": "സാധനം എത്തിയ ശേഷം",
+    "noise": false
+  },
+  {
+    "id": "bn-quantity",
+    "language": "bn-IN",
+    "text": "মায়া, কাল সকাল আটটায় ষাট বস্তা সিমেন্ট পাঠাবেন।",
+    "task": "সিমেন্ট পাঠাবেন",
+    "quantity": "৬০ বস্তা",
+    "person": "মায়া",
+    "deadline": "কাল সকাল ৮টা",
+    "noise": false
+  },
+  {
+    "id": "bn-codemix",
+    "language": "bn-IN",
+    "text": "বৃষ্টি হলে delivery শুক্রবার পর্যন্ত বন্ধ রাখবেন।",
+    "task": "বৃষ্টি হলে delivery বন্ধ রাখবেন",
+    "quantity": "",
+    "person": "",
+    "deadline": "শুক্রবার পর্যন্ত",
+    "noise": true
+  },
+  {
+    "id": "bn-negation",
+    "language": "bn-IN",
+    "text": "মাল আসার আগে পাঁচশো টাকা দেবেন না।",
+    "task": "মাল আসার আগে টাকা দেবেন না",
+    "quantity": "₹৫০০",
+    "person": "",
+    "deadline": "মাল আসার পরে",
+    "noise": false
+  }
+]

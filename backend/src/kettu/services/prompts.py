@@ -15,6 +15,11 @@ Return only JSON that matches the schema.
 - gist: only if want_gist is true, at most two short sentences in {my_lang_name}: what is asked of the listener, and by when. Otherwise an empty string.
 - entities: every time, date, money amount, quantity (with what it counts, e.g. "2 trucks"), person name and place, in the order spoken. value is written in {my_lang_name}; source_text is copied exactly from the transcript; in_translation is copied exactly from your translation (the words that carry this fact), or an empty string if there is no translation. Empty list if there are none.
 - order_items: only if mode is "orders": each item with quantity and unit, item names in {my_lang_name}. Otherwise an empty list.
+- action_items: only if mode is "actions" or "orders", extract at most eight explicitly requested tasks. Otherwise return an empty list.
+  Each task has task, quantity, person and deadline fields. Each field has a value in {my_lang_name} and source_text copied exactly from the transcript.
+  The task must be an instruction, request or agreed action, not just a fact or a completed event. Keep conditions attached to the task.
+  Include a quantity, responsible person or deadline only when explicitly linked to that task. Never infer a person from a nearby name, the sender or the recipient.
+  Leave BOTH value and source_text empty for missing or ambiguous details. Keep relative dates as spoken; do not calculate calendar dates. Do not turn payments or medical statements into advice.
 If must_include lists facts, your previous translation left them out: put each one into the translation where it was said.
 Never give medical, legal or financial advice. Only describe what the speaker said."""
 
@@ -26,6 +31,13 @@ REPLY_SYSTEM = """Translate the user's reply from {from_lang_name} into {to_lang
 - Write {to_lang_name} in its native script.
 Then translate your output back into {from_lang_name} word for word, so the sender can check the meaning.
 Return only JSON: {{"target_text": "...", "back_translation": "..."}}"""
+
+ACTION_DETAIL_SCHEMA = {
+    "type": "object",
+    "properties": {"value": {"type": "string"}, "source_text": {"type": "string"}},
+    "required": ["value", "source_text"],
+    "additionalProperties": False,
+}
 
 UNDERSTAND_SCHEMA = {
     "type": "object",
@@ -59,8 +71,17 @@ UNDERSTAND_SCHEMA = {
                 "additionalProperties": False,
             },
         },
+        "action_items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {key: ACTION_DETAIL_SCHEMA for key in ("task", "quantity", "person", "deadline")},
+                "required": ["task", "quantity", "person", "deadline"],
+                "additionalProperties": False,
+            },
+        },
     },
-    "required": ["translation", "gist", "entities", "order_items"],
+    "required": ["translation", "gist", "entities", "order_items", "action_items"],
     "additionalProperties": False,
 }
 

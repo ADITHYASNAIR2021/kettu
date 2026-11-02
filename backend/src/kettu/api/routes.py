@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from kettu.container import Context, get_ctx
 from kettu.domain import languages
 from kettu.domain.errors import ErrorCode, KettuError
+from kettu.domain.models import NoteReview
 from kettu.services import audio
 
 log = logging.getLogger(__name__)
@@ -153,6 +154,30 @@ async def get_job(job_id: str, ctx: Context = Depends(get_ctx)):
 
 
 # ---------------------------------------------------------------- replies
+
+
+class ReviewIn(BaseModel):
+    text: str = Field(min_length=1, max_length=6000)
+    source_lang: str | None = None
+    my_lang: str
+    duration_s: float = Field(default=0, ge=0, le=181, allow_inf_nan=False)
+    mode: Literal["listen", "orders"] = "listen"
+    device_id: str
+
+
+@router.post("/v1/notes/review", response_model=NoteReview)
+async def review_note(body: ReviewIn, ctx: Context = Depends(get_ctx)):
+    """Refresh corrected text and an action card without re-uploading or transcribing audio."""
+    device = _device(body.device_id)
+    my_lang = _lang(body.my_lang, "my_lang")
+    source_lang = _lang(body.source_lang, "source_lang") if body.source_lang else None
+    t0 = time.perf_counter()
+    with ctx.limits.reserve(device, "translate"):
+        result, tokens = await ctx.pipeline.review_note(body.text, source_lang, my_lang, body.duration_s, body.mode)
+        ctx.limits.record(device, "translate")
+    ctx.store.log_usage(device_id=device, kind="translate", llm_tokens=tokens, my_lang=my_lang,
+                        detected_lang=source_lang, latency_ms=int((time.perf_counter() - t0) * 1000), status="ok")
+    return result
 
 
 class PreviewIn(BaseModel):

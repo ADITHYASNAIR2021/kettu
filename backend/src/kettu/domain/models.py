@@ -21,6 +21,18 @@ class OrderItem(BaseModel):
     unit: str = ""
 
 
+class ActionDetail(BaseModel):
+    value: str = Field(default="", max_length=300)
+    source_text: str = Field(default="", max_length=1200)
+
+
+class ActionItem(BaseModel):
+    task: ActionDetail
+    quantity: ActionDetail = Field(default_factory=ActionDetail)
+    person: ActionDetail = Field(default_factory=ActionDetail)
+    deadline: ActionDetail = Field(default_factory=ActionDetail)
+
+
 class Understanding(BaseModel):
     """What the LLM returns for a note."""
 
@@ -28,6 +40,7 @@ class Understanding(BaseModel):
     gist: str | None = None
     entities: list[Entity] = []
     order_items: list[OrderItem] | None = None
+    action_items: list[ActionItem] = Field(default_factory=list, max_length=8)
 
 
 class ReplyDraft(BaseModel):
@@ -51,6 +64,24 @@ class NoteResult(BaseModel):
     translation_live: bool = True
     speech_live: bool = True
     timings_ms: dict[str, int] = {}
+    action_items: list[ActionItem] = Field(default_factory=list, max_length=8)
+
+
+class NoteReview(BaseModel):
+    """A refreshed interpretation of user-supplied text; no new speech-recognition claim."""
+
+    transcript: str
+    detected_lang: str | None
+    my_lang: str
+    translation: str | None
+    gist: str | None
+    entities: list[Entity] = Field(default_factory=list)
+    missing_facts: list[str] = Field(default_factory=list)
+    order_items: list[OrderItem] | None = None
+    action_items: list[ActionItem] = Field(default_factory=list, max_length=8)
+    same_language: bool
+    translation_live: bool
+    actions_reviewed: bool = True
 
 
 class TextTranslation(BaseModel):

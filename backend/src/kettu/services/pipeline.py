@@ -15,7 +15,7 @@ from pathlib import Path
 from kettu.config import Settings
 from kettu.domain import languages
 from kettu.domain.errors import ErrorCode, KettuError
-from kettu.domain.models import Entity, NoteResult, ReplyDraft, TextTranslation, Transcript, Understanding, Usage
+from kettu.domain.models import ActionDetail, ActionItem, Entity, NoteResult, NoteReview, ReplyDraft, TextTranslation, Transcript, Understanding, Usage
 from kettu.services import audio
 from kettu.services.gnani import Gender, SpeechService
 from kettu.services.llm import LLM
@@ -55,6 +55,20 @@ def grounded(entities: list[Entity], transcript: str) -> list[Entity]:
     """Keep only facts whose source words really are in the transcript (the app highlights them there)."""
     real = [e for e in entities if e.source_text and e.source_text in transcript]
     return real
+
+
+def grounded_actions(items: list[ActionItem], transcript: str) -> list[ActionItem]:
+    """Reject unsupported tasks and blank any detail without a quote in this version of the transcript."""
+    result = []
+    for item in items[:8]:
+        details = {}
+        for key in ("task", "quantity", "person", "deadline"):
+            detail = getattr(item, key)
+            quote = detail.source_text.strip()
+            details[key] = detail.model_copy() if detail.value.strip() and quote and quote in transcript else ActionDetail()
+        if details["task"].value:
+            result.append(ActionItem(**details))
+    return result
 
 
 def missing_facts(translation: str | None, entities: list[Entity]) -> list[Entity]:
@@ -147,6 +161,7 @@ class Pipeline:
             result.entities = u.entities
             result.missing_facts = missing
             result.order_items = u.order_items
+            result.action_items = u.action_items
         timings["total"] = int((time.perf_counter() - t0) * 1000)
         result.timings_ms = timings
         return result, usage
@@ -193,7 +208,28 @@ class Pipeline:
                     u, missing = again, still
             except KettuError as exc:
                 log.warning("repair pass failed (%s); keeping first translation", exc.code.value)
+        u.action_items = grounded_actions(u.action_items, text)
         return u, _unique(e.value for e in missing), tokens
+
+    async def review_note(
+        self, text: str, source_lang: str | None, my_lang: str, duration_s: float, mode: str = "listen",
+    ) -> tuple[NoteReview, int]:
+        text = text.strip()
+        if not text:
+            raise KettuError(ErrorCode.BAD_REQUEST, "Enter the words you heard before updating the note.")
+        if not self.llm.live:
+            raise KettuError(ErrorCode.BAD_REQUEST, "Translation is unavailable on this server. Your original result has been kept.")
+        same = languages.same_language(source_lang, my_lang)
+        understanding, missing, tokens = await self.understand_text(
+            text, source_lang, my_lang, duration_s, duration_s > self.s.gist_min_seconds, not same,
+            "orders" if mode == "orders" else "actions",
+        )
+        return NoteReview(
+            transcript=text, detected_lang=source_lang, my_lang=my_lang,
+            translation=understanding.translation, gist=understanding.gist,
+            entities=understanding.entities, missing_facts=missing, order_items=understanding.order_items,
+            action_items=understanding.action_items, same_language=same, translation_live=True,
+        ), tokens
 
     async def translate_text(self, text: str, source_lang: str | None, to_lang: str) -> tuple[TextTranslation, int]:
         """A transcript the person already has, put into one more language of their choice."""
