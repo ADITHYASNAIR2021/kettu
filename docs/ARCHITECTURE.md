@@ -73,7 +73,7 @@ flowchart LR
   LIM --> DB
 ```
 
-Kettu's own code only converts, queues and routes audio. It never trains anything and never stores audio or words.
+Kettu's own code converts, queues and routes audio. Audio and results are held temporarily; transcripts and audio are never written to Supabase. Provider retention is separate from Kettu's temporary storage. See [the review](REVIEW.md) for current Render deployment details and release limitations.
 
 ## 3. Components
 
@@ -159,7 +159,7 @@ Text commands: `help`, `language`, `orders` (next note becomes a checklist), `vo
 * One backend instance (min 1, max 1) so the in-memory queue and the Gnani semaphore are authoritative.
 * Per person per IST day: 10 notes, 5 spoken replies (env-configurable). The 11th note gets a friendly limit message, never an error.
 * Whole service per day: caps on STT seconds and TTS characters. When hit, the PWA shows a waitlist screen and the bot says so.
-* Silence trimmed before any paid call; replies capped at 400 characters.
+* Silence trimmed before speech recognition; source replies capped at 700 characters and translated speech at 900.
 * Gnani 429 → exponential backoff (3 tries). Model timeout → one automatic retry, then a plain message.
 * Every error the user sees is a plain sentence with a code: `unsupported_file`, `too_long`, `no_speech`, `model_timeout`, `busy`, `daily_limit`, `service_budget`.
 
@@ -171,6 +171,14 @@ Text commands: `help`, `language`, `orders` (next note becomes a checklist), `vo
 * Third parties named in the consent screen: Gnani (audio), the LLM provider (transcript text). Use a paid API tier that does not train on API data.
 * Stock Timbre voices only, no cloning. The PWA share caption and the bot both say the reply was translated by Kettu.
 * WhatsApp webhook requests are verified with `X-Hub-Signature-256` (app secret). Duplicate deliveries are dropped by message id.
+
+### Review changes (2 November 2026)
+
+An ingress middleware bounds request bodies before multipart parsing, caps concurrent requests, and applies a process-local peer rate limit. Each queued note or direct model operation reserves its device allowance and estimated speech budget before awaiting work. A separate service operation cap bounds translation attempts when clients rotate device IDs. These remain pilot controls, not authenticated per-person quotas or a durable billing ledger.
+
+Media downloads are streamed with size limits and provider host checks. FFmpeg rejects playlist demuxers and remote protocols; decoding is bounded even when a recording has no duration metadata. Queued uploads are removed on shutdown and queue rejection. Reporting views use the caller's RLS permissions and deny public access.
+
+Hosted deployments can require live providers with `REQUIRE_LIVE_MODELS=true`. Local mock output is explicitly labelled in the web app and bot. Configured Supabase usage restoration now paginates and fails startup if counters cannot be restored.
 
 ## 7. Deployment
 

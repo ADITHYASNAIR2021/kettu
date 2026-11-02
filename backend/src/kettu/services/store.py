@@ -6,6 +6,7 @@ Without Supabase settings everything stays in memory, which is fine for local de
 
 import asyncio
 import logging
+from collections import deque
 from datetime import datetime
 from typing import Any
 
@@ -20,7 +21,7 @@ class Store:
     def __init__(self, settings: Settings):
         self.enabled = bool(settings.supabase_url and settings.supabase_service_key)
         self._prefs: dict[str, dict] = {}
-        self._feedback: list[dict] = []
+        self._feedback: deque[dict] = deque(maxlen=500)
         self._tasks: set[asyncio.Task] = set()
         self.http = (
             httpx.AsyncClient(
@@ -40,6 +41,12 @@ class Store:
         task = asyncio.create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    async def close(self) -> None:
+        if self._tasks:
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+        if self.http:
+            await self.http.aclose()
 
     async def _insert(self, table: str, row: dict) -> None:
         if not self.http:
@@ -63,18 +70,29 @@ class Store:
         """Rows since IST midnight, used to restore counters after a restart."""
         if not self.http:
             return []
+        rows = []
         try:
-            resp = await self.http.get(
-                "/usage_events",
-                params={
-                    "select": "device_id,kind,audio_seconds,tts_chars,status",
-                    "created_at": f"gte.{since.isoformat()}",
-                    "limit": "20000",
-                },
-            )
-            return resp.json() if resp.status_code == 200 else []
-        except (httpx.HTTPError, ValueError):
-            return []
+            while True:
+                resp = await self.http.get(
+                    "/usage_events",
+                    params={
+                        "select": "device_id,kind,audio_seconds,tts_chars,status",
+                        "created_at": f"gte.{since.isoformat()}",
+                        "order": "created_at.asc,id.asc", "limit": "1000", "offset": str(len(rows)),
+                    },
+                )
+                resp.raise_for_status()
+                batch = resp.json()
+                if not isinstance(batch, list):
+                    raise ValueError("Invalid usage response")
+                if not batch:
+                    return rows
+                rows.extend(batch)
+                if len(rows) > 100000:
+                    raise ValueError("Too many usage events to restore safely")
+        except (httpx.HTTPError, ValueError) as exc:
+            # A configured but unavailable database must not reset every daily allowance to zero.
+            raise RuntimeError("Cannot restore today's usage limits from Supabase.") from exc
 
     async def get_prefs(self, key: str) -> dict | None:
         if key in self._prefs:

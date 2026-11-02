@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from kettu.api.routes import discard, run_note  # shared with the REST channel
+from kettu.api.routes import discard, enqueue_note  # shared with the REST channel
 from kettu.container import Context
 from kettu.domain import languages
 from kettu.domain.errors import ErrorCode, KettuError
@@ -59,14 +59,23 @@ class Bot:
         self.ctx = ctx
         self.wa = wa
         self.sessions: dict[str, Session] = {}
+        self._active: set[str] = set()
+
+    def sweep(self) -> None:
+        for phone in [p for p, s in self.sessions.items() if s.expired() and p not in self._active]:
+            self.sessions.pop(phone, None)
+            menus = getattr(self.wa, "menus", {})
+            menus.pop(phone, None)
+            locks = getattr(self.wa, "_locks", {})
+            locks.pop(phone, None)
 
     # ------------------------------------------------------------ plumbing
 
     def session(self, phone: str) -> Session:
+        self.sweep()
         s = self.sessions.get(phone)
-        if s is None or (s.expired() and s.state != "idle"):
-            keep_orders = s.orders_next if s else False
-            s = Session(orders_next=keep_orders)
+        if s is None or s.expired():
+            s = Session()
             self.sessions[phone] = s
         s.touched = time.monotonic()
         return s
@@ -80,10 +89,14 @@ class Bot:
         if allowed and phone not in allowed:
             log.info("ignoring message from a number not on WA_ALLOWED_NUMBERS")
             return
-        key, device = device_for(phone, self.ctx.settings.wa_hash_salt)
-        prefs = await self.prefs(key)
-        ui = m.ui_lang(prefs.get("my_lang"))
+        if not phone or phone in self._active:
+            return  # one conversation turn at a time; do not race language, reply and approval state
+        self._active.add(phone)
+        ui = "en"
         try:
+            key, device = device_for(phone, self.ctx.settings.wa_hash_salt)
+            prefs = await self.prefs(key)
+            ui = m.ui_lang(prefs.get("my_lang"))
             await self._route(msg, phone, key, device, prefs, ui)
         except KettuError as exc:
             await self._safe_text(phone, m.t(ui, "error", message=exc.message))
@@ -92,6 +105,8 @@ class Bot:
         except Exception:
             log.exception("bot failure")
             await self._safe_text(phone, m.t(ui, "error", message=KettuError(ErrorCode.INTERNAL).message))
+        finally:
+            self._active.discard(phone)
 
     async def _safe_text(self, phone: str, text: str) -> None:
         try:
@@ -238,10 +253,16 @@ class Bot:
 
     async def _download(self, media: dict) -> Path:
         data, mime = await self.wa.download_media(media.get("id", ""))
+        if len(data) > self.ctx.settings.max_upload_mb * 1024 * 1024:
+            raise KettuError(ErrorCode.TOO_BIG)
         suffix = MIME_SUFFIX.get(mime.split(";")[0].strip(), ".ogg")
         folder = Path(tempfile.mkdtemp(prefix="kettu_wa_"))
         path = folder / f"note{suffix}"
-        path.write_bytes(data)
+        try:
+            path.write_bytes(data)
+        except BaseException:
+            discard(path)
+            raise
         return path
 
     async def understand(self, phone, device, prefs, ui, sess: Session, media: dict, mid: str) -> None:
@@ -255,10 +276,10 @@ class Bot:
         sess.orders_next = False
         try:
             await audio.check_upload(path, ctx.settings.max_note_seconds, ctx.settings.max_upload_mb)
-        except KettuError:
+            job = enqueue_note(ctx, path, device, prefs["my_lang"], mode, [], [])
+        except BaseException:
             discard(path)
             raise
-        job = ctx.jobs.submit(lambda job: run_note(ctx, job, path, device, prefs["my_lang"], mode, [], []))
         ahead = ctx.jobs.position(job) - 1
         await self.wa.send_text(phone, m.t(ui, "queued", n=ahead) if ahead > 0 else m.t(ui, "listening"))
         await job.done_event.wait()
@@ -287,18 +308,21 @@ class Bot:
                       audio_path: Path | None = None) -> None:
         ctx = self.ctx
         if not sess.to_lang:
+            if audio_path:
+                discard(audio_path)
             await self.wa.send_text(phone, m.t(ui, "no_reply_target"))
             return
         try:
-            ctx.limits.check_preview(device)
-            await self.wa.send_text(phone, m.t(ui, "drafting"))
-            draft, _, usage = await ctx.pipeline.preview_reply(prefs["my_lang"], sess.to_lang, text=text,
-                                                               audio_path=audio_path)
+            if audio_path:
+                await audio.check_upload(audio_path, 61, ctx.settings.max_upload_mb)
+            with ctx.limits.reserve(device, "reply_preview", stt_seconds=61 if audio_path else 0):
+                await self.wa.send_text(phone, m.t(ui, "drafting"))
+                draft, _, usage = await ctx.pipeline.preview_reply(prefs["my_lang"], sess.to_lang, text=text,
+                                                                   audio_path=audio_path)
+                ctx.limits.record(device, "reply_preview", stt_seconds=usage.stt_seconds)
         finally:
             if audio_path:
                 discard(audio_path)
-        ctx.limits.record(device, "reply_preview")
-        ctx.limits.add_stt(usage.stt_seconds)
         ctx.store.log_usage(device_id=device, kind="reply_preview", audio_seconds=round(usage.stt_seconds, 2),
                             llm_tokens=usage.llm_tokens, my_lang=prefs["my_lang"], detected_lang=sess.to_lang,
                             status="ok")
@@ -315,10 +339,10 @@ class Bot:
         if sess.state != "preview" or not sess.target_text or not sess.to_lang:
             await self.wa.send_text(phone, m.t(ui, "expired"))
             return
-        ctx.limits.check_speak(device, len(sess.target_text))
-        await self.wa.send_text(phone, m.t(ui, "speaking"))
-        ogg, usage = await ctx.pipeline.speak_reply(sess.target_text, sess.to_lang, prefs.get("voice", "female"), "ogg")
-        ctx.limits.record(device, "reply_speak", tts_chars=usage.tts_chars)
+        with ctx.limits.reserve(device, "reply_speak", tts_chars=len(sess.target_text)):
+            await self.wa.send_text(phone, m.t(ui, "speaking"))
+            ogg, usage = await ctx.pipeline.speak_reply(sess.target_text, sess.to_lang, prefs.get("voice", "female"), "ogg")
+            ctx.limits.record(device, "reply_speak", tts_chars=usage.tts_chars)
         ctx.store.log_usage(device_id=device, kind="reply_speak", tts_chars=usage.tts_chars,
                             detected_lang=sess.to_lang, status="ok")
         await self.wa.send_voice(phone, ogg)

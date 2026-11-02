@@ -22,6 +22,8 @@ SAMPLE_RATE = 16000
 SILENCE_DB = -35
 SILENCE_MIN_S = 0.4
 MIN_CHUNK_S = 4.0
+INPUT_FORMATS = "aac,amr,asf,avi,flac,matroska,webm,mov,mp3,ogg,wav"
+INPUT_OPTIONS = ["-protocol_whitelist", "file,pipe", "-format_whitelist", INPUT_FORMATS]
 
 _SILENCE_START = re.compile(r"silence_start: (-?[\d.]+)")
 _SILENCE_END = re.compile(r"silence_end: (-?[\d.]+)")
@@ -39,7 +41,10 @@ def _run(args: list[str], timeout: float = 60) -> subprocess.CompletedProcess:
 
 
 async def run(args: list[str], timeout: float = 60) -> subprocess.CompletedProcess:
-    return await asyncio.to_thread(_run, args, timeout)
+    try:
+        return await asyncio.to_thread(_run, args, timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise KettuError(ErrorCode.UNSUPPORTED_FILE, "That audio could not be read in time. Try a shorter recording.") from exc
 
 
 async def probe(path: Path) -> ProbeInfo:
@@ -47,7 +52,7 @@ async def probe(path: Path) -> ProbeInfo:
         [
             "ffprobe", "-v", "error",
             "-show_entries", "format=duration:stream=codec_type,codec_name",
-            "-of", "json", str(path),
+            "-of", "json", *INPUT_OPTIONS, str(path),
         ],
         timeout=20,
     )
@@ -70,12 +75,14 @@ async def check_upload(path: Path, max_seconds: float, max_mb: float) -> ProbeIn
     info = await probe(path)
     if not info.has_audio:
         raise KettuError(ErrorCode.UNSUPPORTED_FILE)
+    if not math.isfinite(info.duration_s) or info.duration_s < 0:
+        raise KettuError(ErrorCode.UNSUPPORTED_FILE)
     if info.duration_s > max_seconds + 1:
         raise KettuError(ErrorCode.TOO_LONG)
     return info
 
 
-async def clean(src: Path, dst: Path) -> float:
+async def clean(src: Path, dst: Path, max_seconds: float = 180.0) -> float:
     """Any input → 16 kHz mono 16-bit WAV, silence trimmed at both ends, loudness normalised.
 
     Returns the cleaned duration in seconds (what Prisma will bill).
@@ -83,7 +90,8 @@ async def clean(src: Path, dst: Path) -> float:
     trim = f"silenceremove=start_periods=1:start_threshold={SILENCE_DB - 10}dB:start_silence=0.25"
     afilter = f"{trim},areverse,{trim},areverse,dynaudnorm=f=150:g=15"
     proc = await run(
-        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
+        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", *INPUT_OPTIONS,
+         "-t", str(max_seconds + 2), "-i", str(src),
          "-vn", "-ac", "1", "-ar", str(SAMPLE_RATE), "-af", afilter, "-c:a", "pcm_s16le", str(dst)],
         timeout=120,
     )

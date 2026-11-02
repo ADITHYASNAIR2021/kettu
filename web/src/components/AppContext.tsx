@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, type RefObject } from "react";
 import type { T } from "@/lib/i18n";
 import type { Prefs } from "@/lib/prefs";
 
@@ -9,6 +9,7 @@ export type AppCtx = {
   prefs: Prefs;
   setPrefs: (p: Partial<Prefs>) => void;
   device: string;
+  dialogTrigger: RefObject<HTMLElement | null>;
 };
 
 export const AppContext = createContext<AppCtx | null>(null);

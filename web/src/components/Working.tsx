@@ -56,7 +56,8 @@ export function Working({ phase, onCancel }: { phase: Phase; onCancel: () => voi
           <li key={s} data-state={i < nowIndex ? "done" : i === nowIndex ? "active" : "todo"}>{label[s]}</li>
         ))}
       </ul>
-      <button className="btn btn-ghost btn-block" onClick={onCancel}>{t("cancel")}</button>
+      <p className="small" style={{ margin: 0 }}>{t("processing_background")}</p>
+      <button className="btn btn-ghost btn-block" onClick={onCancel}>{t("back")}</button>
     </section>
   );
 }

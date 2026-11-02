@@ -29,19 +29,22 @@ class WhatsAppClient:
         body = {"messaging_product": "whatsapp", **payload}
         resp = await self.http.post(f"{self.base}/{self.s.wa_phone_number_id}/messages", json=body)
         if resp.status_code >= 300:
-            log.warning("whatsapp send failed status=%s body=%s", resp.status_code, resp.text[:300])
+            log.warning("whatsapp send failed status=%s", resp.status_code)
             raise WhatsAppError(resp.status_code)
         return resp.json()
 
     async def download_media(self, media_id: str) -> tuple[bytes, str]:
+        from kettu.whatsapp.media import download
+
+        if not media_id.isdigit():
+            raise WhatsAppError("Invalid media id")
         meta = await self.http.get(f"{self.base}/{media_id}")
         if meta.status_code != 200:
             raise WhatsAppError(f"media lookup {meta.status_code}")
         info = meta.json()
-        data = await self.http.get(info["url"])
-        if data.status_code != 200:
-            raise WhatsAppError(f"media download {data.status_code}")
-        return data.content, info.get("mime_type", "audio/ogg")
+        data, mime = await download(self.http, info["url"], self.s.max_upload_mb,
+                                    ("fbsbx.com", "facebook.com", "fbcdn.net"))
+        return data, info.get("mime_type", mime)
 
     async def upload_media(self, data: bytes, mime: str, filename: str) -> str:
         resp = await self.http.post(
@@ -50,7 +53,7 @@ class WhatsAppClient:
             files={"file": (filename, data, mime)},
         )
         if resp.status_code >= 300:
-            log.warning("whatsapp upload failed status=%s body=%s", resp.status_code, resp.text[:300])
+            log.warning("whatsapp upload failed status=%s", resp.status_code)
             raise WhatsAppError(resp.status_code)
         return resp.json()["id"]
 

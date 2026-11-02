@@ -135,7 +135,8 @@ h2.title { font-family: var(--display); font-weight: 600; font-size: 26px; margi
 .btn-leaf { background: var(--leaf); color: var(--on-accent); box-shadow: 0 8px 22px -10px var(--leaf); }
 .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink); }
 .btn-ghost:hover { background: var(--paper-2); }
-.btn-block { width: 100%; }
+.btn-block { width: 100%; white-space: normal; padding-top: 12px; padding-bottom: 12px; text-align: center; }
+.btn svg { flex-shrink: 0; }
 .btn-sm { min-height: 44px; font-size: 15px; padding: 0 16px; }
 
 /* ---------- language grid */

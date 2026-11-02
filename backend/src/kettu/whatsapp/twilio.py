@@ -106,7 +106,7 @@ class TwilioClient:
         async with lock:
             resp = await self.http.post(self.url, data=data)
             if resp.status_code >= 300:
-                log.warning("twilio send failed status=%s body=%s", resp.status_code, resp.text[:300])
+                log.warning("twilio send failed status=%s", resp.status_code)
                 raise WhatsAppError(resp.status_code)
             await asyncio.sleep(SEND_GAP_S)
 
@@ -115,10 +115,10 @@ class TwilioClient:
 
     async def download_media(self, media_id: str) -> tuple[bytes, str]:
         """For Twilio the media id is the MediaUrl itself; fetching it needs the account credentials."""
-        resp = await self.http.get(media_id)
-        if resp.status_code != 200:
-            raise WhatsAppError(f"media download {resp.status_code}")
-        return resp.content, resp.headers.get("content-type", "audio/ogg")
+        from kettu.whatsapp.media import download
+
+        return await download(self.http, media_id, self.s.max_upload_mb,
+                              ("api.twilio.com", "twiliocdn.com"), twilio=True)
 
     async def send_text(self, to: str, text: str, reply_to: str | None = None) -> None:
         self.menus.pop(to, None)  # a menu is only valid until the bot says something else

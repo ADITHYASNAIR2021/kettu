@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const BARS = 28;
-const MAX_SECONDS = 180;
 
 function pickMime(): string {
   if (typeof MediaRecorder === "undefined") return "";
@@ -14,7 +13,7 @@ function pickMime(): string {
 }
 
 /** Tap-to-start / tap-to-stop recorder with live level bars. iPhone Safari records audio/mp4. */
-export function useRecorder(onDone: (blob: Blob) => void) {
+export function useRecorder(onDone: (blob: Blob) => void, maxSeconds = 180) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [levels, setLevels] = useState<number[]>(() => Array(BARS).fill(0.05));
@@ -25,6 +24,8 @@ export function useRecorder(onDone: (blob: Blob) => void) {
   const ctx = useRef<AudioContext | null>(null);
   const raf = useRef<number>(0);
   const started = useRef(0);
+  const generation = useRef(0);
+  const acquiring = useRef(false);
   const done = useRef(onDone);
   useEffect(() => {
     done.current = onDone;
@@ -44,9 +45,16 @@ export function useRecorder(onDone: (blob: Blob) => void) {
   }, []);
 
   const start = useCallback(async () => {
+    if (acquiring.current || rec.current?.state === "recording") return;
+    acquiring.current = true;
+    const current = ++generation.current;
     setError(null);
     try {
       const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      if (generation.current !== current) {
+        s.getTracks().forEach((track) => track.stop());
+        return;
+      }
       stream.current = s;
       const mime = pickMime();
       const r = new MediaRecorder(s, mime ? { mimeType: mime } : undefined);
@@ -84,7 +92,7 @@ export function useRecorder(onDone: (blob: Blob) => void) {
           setSeconds(Math.floor(secs));
           last = now;
         }
-        if (secs >= MAX_SECONDS) {
+        if (secs >= maxSeconds) {
           r.stop();
           setRecording(false);
           return;
@@ -93,13 +101,20 @@ export function useRecorder(onDone: (blob: Blob) => void) {
       };
       raf.current = requestAnimationFrame(tick);
     } catch {
+      if (rec.current && rec.current.state !== "inactive") {
+        rec.current.onstop = null;
+        rec.current.stop();
+      }
       cleanup();
       setRecording(false);
       setError("mic");
+    } finally {
+      acquiring.current = false;
     }
-  }, [cleanup]);
+  }, [cleanup, maxSeconds]);
 
   useEffect(() => () => {
+    generation.current += 1;
     if (rec.current && rec.current.state !== "inactive") {
       rec.current.onstop = null;
       rec.current.stop();

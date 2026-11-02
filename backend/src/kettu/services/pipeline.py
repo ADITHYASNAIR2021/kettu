@@ -54,7 +54,7 @@ def _norm(text: str) -> str:
 def grounded(entities: list[Entity], transcript: str) -> list[Entity]:
     """Keep only facts whose source words really are in the transcript (the app highlights them there)."""
     real = [e for e in entities if e.source_text and e.source_text in transcript]
-    return real or entities
+    return real
 
 
 def missing_facts(translation: str | None, entities: list[Entity]) -> list[Entity]:
@@ -87,7 +87,7 @@ class Pipeline:
         progress: Progress | None = None, max_seconds: float | None = None,
     ) -> Transcript:
         clean = work / "clean.wav"
-        duration = await audio.clean(src, clean)
+        duration = await audio.clean(src, clean, max_seconds=max_seconds or self.s.max_note_seconds)
         if max_seconds and duration > max_seconds + 1:
             raise KettuError(ErrorCode.TOO_LONG)
         chunks = await audio.split(clean, work, self.s.chunk_seconds)
@@ -120,7 +120,8 @@ class Pipeline:
 
         with workdir(self.s) as work:
             await _notify(progress, "preparing")
-            tr = await self.transcribe(src, work, language_code, keyterms, progress)
+            tr = await self.transcribe(src, work, language_code, keyterms, progress,
+                                       max_seconds=self.s.max_note_seconds)
         timings["stt"] = int((time.perf_counter() - t0) * 1000)
 
         same = languages.same_language(tr.detected_lang, my_lang)
@@ -132,6 +133,7 @@ class Pipeline:
             detected_lang=tr.detected_lang, my_lang=my_lang, duration_s=round(tr.duration_s, 1),
             transcript=tr.text, translation=None, gist=None, same_language=same,
             translation_live=self.llm.live,
+            speech_live=getattr(self.speech, "live", True),
         )
         if want_translation or want_gist or mode == "orders":
             await _notify(progress, "understanding")
@@ -182,6 +184,10 @@ class Pipeline:
                                                           want_translation, mode, must)
                 tokens += more
                 again.entities = grounded(again.entities, text)
+                # A repair must not make a missing fact disappear by omitting its entity.
+                known = {e.source_text: e for e in u.entities}
+                known.update({e.source_text: e for e in again.entities})
+                again.entities = list(known.values())
                 still = missing_facts(again.translation, again.entities)
                 if again.translation and len(still) < len(missing):
                     u, missing = again, still

@@ -29,19 +29,41 @@ class LLM(Protocol):
 
 
 def _to_understanding(data: dict, want_gist: bool, want_translation: bool, mode: str) -> Understanding:
+    if not isinstance(data, dict):
+        raise KettuError(ErrorCode.INTERNAL, "The translation came back garbled. Please try again.")
+    for key in ("translation", "gist"):
+        if data.get(key) is not None and not isinstance(data[key], str):
+            raise KettuError(ErrorCode.INTERNAL, "The translation came back garbled. Please try again.")
+    if want_translation and not (data.get("translation") or "").strip():
+        raise KettuError(ErrorCode.INTERNAL, "No translation was returned. Please try again.")
+    for key in ("entities", "order_items"):
+        if data.get(key) is not None and not isinstance(data[key], list):
+            raise KettuError(ErrorCode.INTERNAL, "The translation came back garbled. Please try again.")
     entities = []
     for e in data.get("entities") or []:
         try:
             entities.append(Entity(**e))
         except (TypeError, ValueError):
             continue
-    items = [OrderItem(**i) for i in data.get("order_items") or [] if isinstance(i, dict) and i.get("item")]
+    items = []
+    for item in data.get("order_items") or []:
+        try:
+            items.append(OrderItem(**item))
+        except (TypeError, ValueError):
+            continue
     return Understanding(
         translation=(data.get("translation") or "").strip() or None if want_translation else None,
         gist=(data.get("gist") or "").strip() or None if want_gist else None,
         entities=entities,
         order_items=items if mode == "orders" else None,
     )
+
+
+def _reply_draft(data) -> ReplyDraft:
+    try:
+        return ReplyDraft(**data)
+    except (TypeError, ValueError) as exc:
+        raise KettuError(ErrorCode.INTERNAL, "The reply came back garbled. Please try again.") from exc
 
 
 class AnthropicLLM:
@@ -94,7 +116,7 @@ class AnthropicLLM:
     async def reply(self, text, from_lang, to_lang):
         system = prompts.REPLY_SYSTEM.format(from_lang_name=languages.name(from_lang), to_lang_name=languages.name(to_lang))
         data, tokens = await self._json_call(system, text, prompts.REPLY_SCHEMA, max_tokens=2000)
-        return ReplyDraft(**data), tokens
+        return _reply_draft(data), tokens
 
     async def ping(self) -> bool:
         try:
@@ -134,6 +156,8 @@ class GeminiLLM:
                 if attempt == 2:
                     raise KettuError(ErrorCode.MODEL_TIMEOUT, retryable=True) from exc
                 continue
+            except httpx.HTTPError as exc:
+                raise KettuError(ErrorCode.MODEL_TIMEOUT, retryable=True) from exc
             if resp.status_code in (429, 500, 503) and attempt < 2:
                 await asyncio.sleep(1.5 * (attempt + 1))
                 continue
@@ -141,13 +165,13 @@ class GeminiLLM:
         if resp.status_code != 200:
             log.error("gemini status=%s", resp.status_code)
             raise KettuError(ErrorCode.INTERNAL, "The translation service failed. Please try again.")
-        payload = resp.json()
-        usage = payload.get("usageMetadata", {})
-        tokens = int(usage.get("promptTokenCount", 0)) + int(usage.get("candidatesTokenCount", 0))
         try:
+            payload = resp.json()
+            usage = payload.get("usageMetadata", {})
+            tokens = int(usage.get("promptTokenCount", 0)) + int(usage.get("candidatesTokenCount", 0))
             text = payload["candidates"][0]["content"]["parts"][0]["text"]
             return json.loads(text), tokens
-        except (KeyError, IndexError, json.JSONDecodeError) as exc:
+        except (KeyError, IndexError, ValueError, TypeError, AttributeError) as exc:
             raise KettuError(ErrorCode.INTERNAL, "The translation came back garbled. Please try again.") from exc
 
     async def understand(self, transcript, source_lang, my_lang, duration_s, want_gist, want_translation, mode,
@@ -161,7 +185,7 @@ class GeminiLLM:
     async def reply(self, text, from_lang, to_lang):
         system = prompts.REPLY_SYSTEM.format(from_lang_name=languages.name(from_lang), to_lang_name=languages.name(to_lang))
         data, tokens = await self._json_call(system, text, prompts.REPLY_SCHEMA, max_tokens=2000)
-        return ReplyDraft(**data), tokens
+        return _reply_draft(data), tokens
 
     async def ping(self) -> bool:
         try:

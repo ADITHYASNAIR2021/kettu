@@ -4,7 +4,7 @@
  * 2. Keeps the app shell available so the share screen opens fast on slow networks.
  */
 const SHARE_CACHE = "kettu-share-v1";
-const SHELL_CACHE = "kettu-shell-v1";
+const SHELL_CACHE = "kettu-shell-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
@@ -17,19 +17,36 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => ![SHARE_CACHE, SHELL_CACHE].includes(k)).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("kettu-") && ![SHARE_CACHE, SHELL_CACHE].includes(k)).map((k) => caches.delete(k))))
+      .then(clearExpiredShares)
       .then(() => self.clients.claim()),
   );
 });
+
+async function clearExpiredShares() {
+  const cache = await caches.open(SHARE_CACHE);
+  for (const key of await cache.keys()) {
+    const response = await cache.match(key);
+    const at = Number(response?.headers.get("X-Shared-At") || 0);
+    if (!at || Date.now() - at > 600_000) await cache.delete(key);
+  }
+}
+
+function redirect(value) {
+  return Response.redirect(new URL(`/?shared=${value}`, self.location.origin).href, 303);
+}
 
 async function handleShare(request) {
   try {
     const form = await request.formData();
     const file = form.getAll("audio").find((f) => f && typeof f !== "string");
-    if (!file) return Response.redirect("/?shared=empty", 303);
+    if (!file) return redirect("empty");
+    if (file.size > 10 * 1024 * 1024) return redirect("too_big");
+    await clearExpiredShares();
+    const token = crypto.randomUUID();
     const cache = await caches.open(SHARE_CACHE);
     await cache.put(
-      "/shared-audio",
+      `/shared-audio/${token}`,
       new Response(file, {
         headers: {
           "Content-Type": file.type || "audio/ogg",
@@ -38,9 +55,9 @@ async function handleShare(request) {
         },
       }),
     );
-    return Response.redirect("/?shared=1", 303);
-  } catch (e) {
-    return Response.redirect("/?shared=error", 303);
+    return redirect(token);
+  } catch {
+    return redirect("error");
   }
 }
 

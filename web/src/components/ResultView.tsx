@@ -51,8 +51,14 @@ function ReadAloud({ text, lang: code }: { text: string; lang: LangCode }) {
   const { t, prefs, device } = useApp();
   const [state, setState] = useState<"idle" | "loading" | "playing" | "error">("idle");
   const player = useRef<HTMLAudioElement | null>(null);
+  const objectUrl = useRef<string | null>(null);
+  const generation = useRef(0);
 
-  useEffect(() => () => player.current?.pause(), []);
+  useEffect(() => () => {
+    generation.current += 1;
+    player.current?.pause();
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+  }, []);
 
   if (!text) return null;
 
@@ -63,16 +69,24 @@ function ReadAloud({ text, lang: code }: { text: string; lang: LangCode }) {
       return;
     }
     setState("loading");
+    const current = generation.current;
     try {
+      if (player.current) {
+        await player.current.play();
+        if (current === generation.current) setState("playing");
+        return;
+      }
       const blob = await speakReply({ targetText: text, toLang: code, voice: prefs.voice, deviceId: device, purpose: "read_aloud" });
+      if (current !== generation.current) return;
       const url = URL.createObjectURL(blob);
+      objectUrl.current = url;
       const audio = new Audio(url);
       player.current = audio;
-      audio.onended = () => { setState("idle"); URL.revokeObjectURL(url); };
+      audio.onended = () => setState("idle");
       await audio.play();
-      setState("playing");
+      if (current === generation.current) setState("playing");
     } catch {
-      setState("error");
+      if (current === generation.current) setState("error");
     }
   };
 
@@ -142,7 +156,7 @@ function OtherLanguage({ result }: { result: NoteResult }) {
           <div className="row">
             <p className="eyebrow">{t("in_lang", { lang: lang(to)?.native ?? "" })}</p>
             <span className="spacer" />
-            <ReadAloud text={out.translation.length <= 900 ? out.translation : ""} lang={to} />
+            <ReadAloud key={`${to}:${out.translation}`} text={out.translation.length <= 900 ? out.translation : ""} lang={to} />
           </div>
           <p className="translation" lang={htmlLang(to)}>{out.translation}</p>
           <MissingFacts facts={out.missing_facts} />
@@ -196,6 +210,7 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew }: Props
 
   return (
     <section className="stack reveal" style={{ gap: 14 }}>
+      {result.speech_live === false && <div className="alert" role="status">{t("demo_mode")}</div>}
       <div className="row">
         <span className="badge" lang={htmlLang(result.detected_lang)}>
           {t("heard_in", { lang: src?.native ?? "?" })}
@@ -249,6 +264,7 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew }: Props
 
       {result.order_items && result.order_items.length > 0 && (
         <div className="card stack">
+          <p className="small" style={{ margin: 0 }}>{t("ai_summary")}</p>
           <div className="row">
             <p className="eyebrow">🛒 {t("order_list")}</p>
             <span className="spacer" />

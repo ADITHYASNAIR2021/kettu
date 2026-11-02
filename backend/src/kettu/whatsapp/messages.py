@@ -5,7 +5,7 @@ from kettu.domain.models import NoteResult
 
 T: dict[str, dict[str, str]] = {
     "en": {
-        "welcome": "Hi! I'm *Kettu* 👂 (Malayalam for \"heard\").\n\nForward me any WhatsApp voice note, in any Indian language. I'll write it in your language, give a short gist if it's long, and help you reply with a voice note in *their* language.\n\nFirst, which language do you read?",
+        "welcome": "Hi! I'm *Kettu* 👂 (Malayalam for \"heard\").\n\nForward a voice note to read it in your language and reply with an AI voice in theirs.\n\nAudio goes to Gnani AI; text goes to Gemini or Anthropic. This takes the note outside WhatsApp's encrypted chat. Use fictional details for this demo; only forward notes you have permission to share. Check the translation before acting on it.\n\nFirst, which language do you read?",
         "pick_body": "Choose the language you want notes translated into.",
         "pick_button": "Choose language",
         "pick_section": "Languages",
@@ -187,6 +187,10 @@ def format_note(r: NoteResult, ui: str) -> str:
     src = lang_label(r.detected_lang, ui)
     mine = lang_label(r.my_lang, ui)
     lines = [f"🎧 *{src}* · {mmss(r.duration_s)}"]
+    if not r.speech_live:
+        lines += ["", "Demo mode: this transcript is a sample, not your recording."]
+    if r.missing_facts:
+        lines += ["", "⚠️ Check the original: the translation may omit " + ", ".join(r.missing_facts)]
     if r.gist:
         lines += ["", f"📝 *{t(ui, 'gist')}*", r.gist]
     if r.translation:

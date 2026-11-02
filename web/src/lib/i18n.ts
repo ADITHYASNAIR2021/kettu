@@ -1,13 +1,15 @@
 export type UiLang = "en" | "ml" | "hi" | "bn";
 
 const en = {
+  processing_background: "You can go back. A note already sent may finish processing in the background.",
+  demo_mode: "Demo mode: the transcript is a sample, not your recording. Generated audio is a test tone.",
   tagline: "Any voice note, in your language.",
   hero_sub: "Share a WhatsApp voice note to Kettu. Read it in your language. Answer with a voice note in theirs.",
   pick_lang: "Which language do you read?",
   continue: "Continue",
   consent_title: "Before you start",
   consent_body:
-    "Kettu sends the audio to Gnani AI to hear it, and the words to an AI model to translate them. Nothing is kept: audio is deleted as soon as the result is ready and results vanish after 10 minutes. Only share notes you have the right to share.",
+    "Kettu sends audio to Gnani AI and text to Google Gemini or Anthropic. Audio is deleted after processing; server results expire after 10 minutes. Usage counts and preferences may be saved. AI providers have their own data policies. Use fictional details for this demo and only share notes you have permission to share.",
   agree: "I understand, start",
   install_title: "Put Kettu in WhatsApp's Share menu",
   install_body: "Add Kettu to your home screen once. After that it appears when you tap Share on a voice note.",
@@ -117,7 +119,7 @@ const ml: Dict = {
   continue: "തുടരുക",
   consent_title: "തുടങ്ങും മുമ്പ്",
   consent_body:
-    "ശബ്ദം കേൾക്കാൻ Kettu അത് Gnani AI-ക്ക് അയക്കുന്നു, വിവർത്തനത്തിന് വാക്കുകൾ ഒരു AI മോഡലിനും. ഒന്നും സൂക്ഷിക്കുന്നില്ല: ഫലം തയ്യാറായാൽ ശബ്ദം മായ്ക്കും, 10 മിനിറ്റിനു ശേഷം ഫലവും. ഷെയർ ചെയ്യാൻ അവകാശമുള്ള നോട്ടുകൾ മാത്രം ഷെയർ ചെയ്യൂ.",
+    "Kettu ഓഡിയോ Gnani AI-ക്കും വാക്കുകൾ Google Gemini അല്ലെങ്കിൽ Anthropic-നും അയക്കുന്നു. പ്രോസസ്സിംഗ് കഴിഞ്ഞാൽ ഓഡിയോ മായ്ക്കും; സെർവറിലെ ഫലം 10 മിനിറ്റിനു ശേഷം കാലഹരണപ്പെടും. ഉപയോഗ കണക്കുകളും ക്രമീകരണങ്ങളും സൂക്ഷിച്ചേക്കാം. AI സേവനങ്ങൾക്ക് സ്വന്തം ഡാറ്റാ നയങ്ങളുണ്ട്. ഡെമോയിൽ സാങ്കൽപ്പിക വിവരങ്ങൾ ഉപയോഗിക്കൂ; അനുമതിയുള്ള നോട്ടുകൾ മാത്രം ഷെയർ ചെയ്യൂ.",
   agree: "മനസ്സിലായി, തുടങ്ങാം",
   install_title: "WhatsApp-ന്റെ Share മെനുവിൽ Kettu ചേർക്കൂ",
   install_body: "ഒരു തവണ Kettu ഹോം സ്ക്രീനിൽ ചേർക്കൂ. പിന്നെ വോയ്സ് നോട്ടിൽ Share അമർത്തുമ്പോൾ Kettu കാണാം.",
@@ -223,7 +225,7 @@ const hi: Dict = {
   continue: "आगे बढ़ें",
   consent_title: "शुरू करने से पहले",
   consent_body:
-    "Kettu आवाज़ सुनने के लिए Gnani AI को भेजता है, और अनुवाद के लिए शब्द एक AI मॉडल को। कुछ भी सहेजा नहीं जाता: नतीजा बनते ही आवाज़ मिटा दी जाती है और 10 मिनट बाद नतीजा भी। सिर्फ़ वही नोट शेयर करें जिन्हें शेयर करने का आपको हक़ है।",
+    "Kettu ऑडियो Gnani AI को और शब्द Google Gemini या Anthropic को भेजता है। प्रोसेसिंग के बाद ऑडियो मिटा दिया जाता है; सर्वर के नतीजे 10 मिनट बाद समाप्त होते हैं। उपयोग की गिनती और पसंद सहेजी जा सकती हैं। AI सेवाओं की अपनी डेटा नीतियाँ हैं। डेमो में काल्पनिक जानकारी इस्तेमाल करें और अनुमति वाले नोट ही शेयर करें।",
   agree: "समझ गया, शुरू करें",
   install_title: "Kettu को WhatsApp के Share मेन्यू में लाएँ",
   install_body: "एक बार Kettu को होम स्क्रीन पर जोड़ें। फिर वॉइस नोट पर Share दबाने पर Kettu दिखेगा।",
@@ -329,7 +331,7 @@ const bn: Dict = {
   continue: "এগিয়ে যান",
   consent_title: "শুরু করার আগে",
   consent_body:
-    "Kettu শোনার জন্য অডিও Gnani AI-কে পাঠায়, আর অনুবাদের জন্য কথাগুলো একটা AI মডেলকে। কিছুই রাখা হয় না: ফল তৈরি হলেই অডিও মুছে যায়, ১০ মিনিট পরে ফলও। শুধু সেই নোট শেয়ার করুন যা শেয়ার করার অধিকার আপনার আছে।",
+    "Kettu অডিও Gnani AI-কে এবং লেখা Google Gemini বা Anthropic-কে পাঠায়। প্রক্রিয়া শেষে অডিও মুছে যায়; সার্ভারের ফল ১০ মিনিট পরে মেয়াদ হারায়। ব্যবহারের হিসাব ও পছন্দ রাখা হতে পারে। AI পরিষেবাগুলির নিজস্ব ডেটা নীতি আছে। ডেমোতে কাল্পনিক তথ্য ব্যবহার করুন এবং অনুমতি আছে এমন নোটই শেয়ার করুন।",
   agree: "বুঝেছি, শুরু করুন",
   install_title: "Kettu-কে WhatsApp-এর Share মেনুতে আনুন",
   install_body: "একবার Kettu হোম স্ক্রিনে যোগ করুন। তারপর ভয়েস নোটে Share চাপলেই Kettu দেখা যাবে।",

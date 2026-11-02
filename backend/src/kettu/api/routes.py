@@ -82,26 +82,41 @@ def discard(path: Path) -> None:
 
 @router.post("/v1/notes", status_code=202)
 async def create_note(request: Request, ctx: Context = Depends(get_ctx)):
-    form = await request.form()
-    upload = form.get("audio")
-    if not upload or isinstance(upload, str):
-        raise KettuError(ErrorCode.BAD_REQUEST, "Attach a voice note.")
-    device = _device(form.get("device_id"))
-    my_lang = _lang(form.get("my_lang"), "my_lang")
-    mode = "orders" if form.get("mode") == "orders" else "listen"
-    hints = _parse_list(form.get("hint_langs"), 4)
-    keyterms = _parse_list(form.get("keyterms"), 50)
-
-    ctx.limits.check_note(device)
-    path = await save_upload(upload, ctx.settings.max_upload_mb)
+    async with request.form(max_files=1, max_fields=8) as form:
+        upload = form.get("audio")
+        if not upload or isinstance(upload, str):
+            raise KettuError(ErrorCode.BAD_REQUEST, "Attach a voice note.")
+        device = _device(form.get("device_id"))
+        my_lang = _lang(form.get("my_lang"), "my_lang")
+        mode = "orders" if form.get("mode") == "orders" else "listen"
+        hints = _parse_list(form.get("hint_langs"), 4)
+        keyterms = _parse_list(form.get("keyterms"), 50)
+        ctx.limits.check_note(device)
+        path = await save_upload(upload, ctx.settings.max_upload_mb)
     try:
         await audio.check_upload(path, ctx.settings.max_note_seconds, ctx.settings.max_upload_mb)
-    except KettuError:
+        job = enqueue_note(ctx, path, device, my_lang, mode, hints, keyterms)
+    except BaseException:
         discard(path)
         raise
-
-    job = ctx.jobs.submit(lambda job: run_note(ctx, job, path, device, my_lang, mode, hints, keyterms))
     return {"job_id": job.id, "position": ctx.jobs.position(job)}
+
+
+def enqueue_note(ctx, path, device, my_lang, mode, hints, keyterms):
+    reservation = ctx.limits.reserve(device, "note", stt_seconds=ctx.settings.max_note_seconds)
+    reservation.__enter__()
+
+    def cleanup():
+        discard(path)
+        reservation.__exit__(None, None, None)
+
+    try:
+        return ctx.jobs.submit(
+            lambda job: run_note(ctx, job, path, device, my_lang, mode, hints, keyterms), cleanup=cleanup,
+        )
+    except BaseException:
+        cleanup()
+        raise
 
 
 async def run_note(ctx: Context, job, path: Path, device: str, my_lang: str, mode: str,
@@ -152,11 +167,16 @@ async def preview_reply(request: Request, ctx: Context = Depends(get_ctx)):
     ctype = request.headers.get("content-type", "")
     audio_path: Path | None = None
     if ctype.startswith("multipart/"):
-        form = await request.form()
-        fields = {k: form.get(k) for k in ("from_lang", "to_lang", "device_id", "text")}
-        upload = form.get("audio")
-        if upload is not None and not isinstance(upload, str):
-            audio_path = await save_upload(upload, ctx.settings.max_upload_mb)
+        async with request.form(max_files=1, max_fields=5) as form:
+            fields = {k: form.get(k) for k in ("from_lang", "to_lang", "device_id", "text")}
+            device = _device(fields.get("device_id"))
+            from_lang = _lang(fields.get("from_lang"), "from_lang")
+            to_lang = _lang(fields.get("to_lang"), "to_lang")
+            if fields.get("text") is not None and not isinstance(fields["text"], str):
+                raise KettuError(ErrorCode.BAD_REQUEST)
+            upload = form.get("audio")
+            if upload is not None and not isinstance(upload, str):
+                audio_path = await save_upload(upload, ctx.settings.max_upload_mb)
     else:
         try:
             fields = PreviewIn.model_validate(await request.json()).model_dump()
@@ -166,18 +186,17 @@ async def preview_reply(request: Request, ctx: Context = Depends(get_ctx)):
     from_lang = _lang(fields.get("from_lang"), "from_lang")
     to_lang = _lang(fields.get("to_lang"), "to_lang")
     try:
-        ctx.limits.check_preview(device)
         if audio_path:
             await audio.check_upload(audio_path, 61, ctx.settings.max_upload_mb)
         t0 = time.perf_counter()
-        draft, source_text, usage = await ctx.pipeline.preview_reply(
-            from_lang, to_lang, text=fields.get("text"), audio_path=audio_path
-        )
+        with ctx.limits.reserve(device, "reply_preview", stt_seconds=61 if audio_path else 0):
+            draft, source_text, usage = await ctx.pipeline.preview_reply(
+                from_lang, to_lang, text=fields.get("text"), audio_path=audio_path
+            )
+            ctx.limits.record(device, "reply_preview", stt_seconds=usage.stt_seconds)
     finally:
         if audio_path:
             discard(audio_path)
-    ctx.limits.record(device, "reply_preview")
-    ctx.limits.add_stt(usage.stt_seconds)
     ctx.store.log_usage(device_id=device, kind="reply_preview", audio_seconds=round(usage.stt_seconds, 2),
                         llm_tokens=usage.llm_tokens, my_lang=from_lang, detected_lang=to_lang,
                         latency_ms=int((time.perf_counter() - t0) * 1000), status="ok")
@@ -197,10 +216,10 @@ async def translate(body: TranslateIn, ctx: Context = Depends(get_ctx)):
     device = _device(body.device_id)
     to_lang = _lang(body.to_lang, "to_lang")
     from_lang = body.from_lang if languages.is_supported(body.from_lang) else None
-    ctx.limits.check_translate(device)
     t0 = time.perf_counter()
-    out, tokens = await ctx.pipeline.translate_text(body.text, from_lang, to_lang)
-    ctx.limits.record(device, "translate")
+    with ctx.limits.reserve(device, "translate"):
+        out, tokens = await ctx.pipeline.translate_text(body.text, from_lang, to_lang)
+        ctx.limits.record(device, "translate")
     ctx.store.log_usage(device_id=device, kind="translate", llm_tokens=tokens, my_lang=to_lang, detected_lang=from_lang,
                         latency_ms=int((time.perf_counter() - t0) * 1000), status="ok")
     return out.model_dump()
@@ -221,10 +240,10 @@ async def speak_reply(body: SpeakIn, ctx: Context = Depends(get_ctx)):
     device = _device(body.device_id)
     to_lang = _lang(body.to_lang, "to_lang")
     kind = "read_aloud" if body.purpose == "read_aloud" else "reply_speak"
-    ctx.limits.check_speak(device, len(body.target_text), kind)
     t0 = time.perf_counter()
-    data, usage = await ctx.pipeline.speak_reply(body.target_text, to_lang, body.voice, body.format)
-    ctx.limits.record(device, kind, tts_chars=usage.tts_chars)
+    with ctx.limits.reserve(device, kind, tts_chars=len(body.target_text)):
+        data, usage = await ctx.pipeline.speak_reply(body.target_text, to_lang, body.voice, body.format)
+        ctx.limits.record(device, kind, tts_chars=usage.tts_chars)
     ctx.store.log_usage(device_id=device, kind=kind, tts_chars=usage.tts_chars, detected_lang=to_lang,
                         latency_ms=int((time.perf_counter() - t0) * 1000), status="ok")
     media = "audio/ogg" if body.format == "ogg" else "audio/mpeg"
@@ -258,7 +277,8 @@ async def feedback(body: FeedbackIn, ctx: Context = Depends(get_ctx)):
 
 @router.get("/v1/limits")
 async def limits(device_id: str = Query(...), ctx: Context = Depends(get_ctx)):
-    return {**ctx.limits.remaining(_device(device_id)), "translation_live": ctx.llm.live}
+    return {**ctx.limits.remaining(_device(device_id)), "translation_live": ctx.llm.live,
+            "speech_live": getattr(ctx.speech, "live", True)}
 
 
 @router.get("/v1/languages")

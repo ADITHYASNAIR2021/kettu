@@ -6,9 +6,11 @@ Built for the Great Indian AI Internship Challenge on **Gnani Prisma v3.0** (spe
 
 Architecture, flows and trade-offs: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
+Review findings, verification evidence and remaining deployment work: [docs/REVIEW.md](docs/REVIEW.md).
+
 ```
 web/       Next.js 16 PWA (share target, upload, recorder, reply flow) → Vercel
-backend/   FastAPI API + WhatsApp bot (ffmpeg, Prisma, Timbre, LLM, queue, limits) → Cloud Run asia-south1
+backend/   FastAPI API + WhatsApp bot (ffmpeg, Prisma, Timbre, LLM, queue, limits) → Render
 scripts/   deploy-backend.sh, make_icons.py
 ```
 
@@ -105,5 +107,5 @@ One instance (min 1, max 1) on purpose: the job queue and the Gnani request gate
 * Same per-person limits on both channels: 10 notes and 5 voice replies a day, plus a whole-service daily budget with a waitlist message instead of an error.
 * Replies shared from the PWA arrive as an audio file, not a voice-note bubble (a WhatsApp limit); the bot sends a true voice note.
 * Gists and entity chips are AI output: the app labels them as a summary and links every amount, time and name back to the exact words in the transcript.
-* Nothing is stored: audio is deleted when the job ends, results live 10 minutes in memory, Supabase only holds counters and thumbs.
+* Uploaded audio is deleted when the job ends. API results expire after 10 minutes; browser results remain until cleared or closed. Supabase stores usage metadata, feedback and optional bot preferences. Third-party providers have their own data policies; see the app's `/privacy` page.
 * Demo audio must be scripted and consented with fake names and numbers, per the contest rules.

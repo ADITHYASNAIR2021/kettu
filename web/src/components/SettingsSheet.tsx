@@ -5,9 +5,11 @@ import { UI_LANGS } from "@/lib/i18n";
 import { LANGUAGES, type LangCode } from "@/lib/languages";
 import { useApp } from "./AppContext";
 import { Close } from "./Icons";
+import { useDialog } from "./useDialog";
 
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const { t, prefs, setPrefs } = useApp();
+  const dialog = useDialog(onClose);
   const [word, setWord] = useState("");
 
   const addWord = () => {
@@ -20,7 +22,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="sheet-backdrop" onClick={onClose} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={t("settings")}>
+      <div ref={dialog} tabIndex={-1} className="sheet" role="dialog" aria-modal="true" aria-label={t("settings")}>
         <div className="sheet-inner">
           <div className="grab" />
           <div className="row">
@@ -81,6 +83,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
           <details className="card orig">
             <summary><span className="eyebrow">{t("privacy")}</span></summary>
             <p style={{ marginBottom: 0 }}>{t("consent_body")}</p>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer">{t("privacy")}</a>
           </details>
 
           <button className="btn btn-primary btn-block" onClick={onClose}>{t("done")}</button>

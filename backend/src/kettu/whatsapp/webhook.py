@@ -55,11 +55,8 @@ async def verify(
 async def receive(request: Request):
     body = await request.body()
     s = request.app.state.ctx.settings
-    if s.wa_app_secret:
-        if not valid_signature(s.wa_app_secret, body, request.headers.get("x-hub-signature-256")):
-            return Response(status_code=401)
-    else:
-        log.warning("WA_APP_SECRET not set: webhook signature not checked")
+    if not s.wa_app_secret or not valid_signature(s.wa_app_secret, body, request.headers.get("x-hub-signature-256")):
+        return Response(status_code=401)
 
     bot = getattr(request.app.state, "bot", None)
     if bot is None:
@@ -68,12 +65,18 @@ async def receive(request: Request):
         payload = json.loads(body)
     except json.JSONDecodeError:
         return Response(status_code=200)
+    if not isinstance(payload, dict):
+        return Response(status_code=400)
 
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
             names = {c.get("wa_id"): (c.get("profile") or {}).get("name", "") for c in value.get("contacts", [])}
             for msg in value.get("messages", []):
+                if len(_tasks) >= 50:
+                    return Response(status_code=503)
+                if not msg.get("id"):
+                    continue
                 if not first_time(msg.get("id", "")):
                     continue
                 task = asyncio.create_task(bot.handle(msg, names.get(msg.get("from"), "")))

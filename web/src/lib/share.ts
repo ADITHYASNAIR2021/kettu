@@ -1,11 +1,14 @@
 /** Reads the voice note the service worker parked after a WhatsApp share, then clears it. */
-export async function takeSharedAudio(): Promise<File | null> {
+export async function takeSharedAudio(token: string): Promise<File | null> {
   if (typeof caches === "undefined") return null;
   try {
     const cache = await caches.open("kettu-share-v1");
-    const resp = await cache.match("/shared-audio");
+    const key = token === "1" ? "/shared-audio" : `/shared-audio/${token}`;
+    const resp = await cache.match(key);
     if (!resp) return null;
-    await cache.delete("/shared-audio");
+    await cache.delete(key);
+    const at = Number(resp.headers.get("X-Shared-At") || 0);
+    if (!at || Date.now() - at > 600_000) return null;
     const blob = await resp.blob();
     const name = decodeURIComponent(resp.headers.get("X-Filename") || "voice-note.opus");
     return new File([blob], name, { type: blob.type || "audio/ogg" });

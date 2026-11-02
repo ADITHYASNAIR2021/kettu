@@ -24,6 +24,7 @@ Work = Callable[["Job"], Awaitable[Any]]
 class Job:
     id: str
     work: Work
+    cleanup: Callable[[], None] | None = None
     status: Status = "queued"
     stage: str = "queued"
     result: Any = None
@@ -63,11 +64,18 @@ class JobQueue:
             t.cancel()
         await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks = []
+        for job in self.jobs.values():
+            if job.cleanup:
+                job.cleanup()
+                job.cleanup = None
+        self.jobs.clear()
+        self.waiting.clear()
+        self._queue = None
 
-    def submit(self, work: Work) -> Job:
+    def submit(self, work: Work, cleanup: Callable[[], None] | None = None) -> Job:
         if len(self.waiting) >= self.max_waiting:
             raise KettuError(ErrorCode.BUSY, "Kettu is very busy right now. Please try again in a few minutes.")
-        job = Job(id=uuid.uuid4().hex, work=work)
+        job = Job(id=uuid.uuid4().hex, work=work, cleanup=cleanup)
         self.jobs[job.id] = job
         self.waiting.append(job.id)
         self.queue.put_nowait(job.id)
@@ -84,7 +92,8 @@ class JobQueue:
 
     def get(self, job_id: str) -> Job:
         job = self.jobs.get(job_id)
-        if not job:
+        if not job or (job.finished is not None and time.monotonic() - job.finished >= self.ttl_s):
+            self.jobs.pop(job_id, None)
             raise KettuError(ErrorCode.NOT_FOUND)
         return job
 
@@ -106,6 +115,9 @@ class JobQueue:
                 log.exception("job %s failed", job.id)
                 job.error, job.status, job.stage = KettuError(ErrorCode.INTERNAL), "error", "error"
             finally:
+                if job.cleanup:
+                    job.cleanup()
+                    job.cleanup = None
                 job.finished = time.monotonic()
                 job.done_event.set()
 

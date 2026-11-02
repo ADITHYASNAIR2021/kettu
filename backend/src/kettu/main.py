@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from kettu.api.routes import router as api_router
+from kettu.api.guard import RequestGuard
 from kettu.config import Settings, get_settings
 from kettu.container import Context, build_context
 from kettu.domain.errors import ErrorCode, KettuError
@@ -28,6 +29,8 @@ def create_app(settings: Settings | None = None, ctx: Context | None = None) -> 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         context = ctx or build_context(settings)
+        if settings.require_live_models and (not getattr(context.speech, "live", True) or not context.llm.live):
+            raise RuntimeError("Live speech and translation providers are required. Check the model API keys.")
         app.state.ctx = context
         context.limits.restore(await context.store.today_usage(ist_midnight()))
         context.jobs.start()
@@ -51,13 +54,34 @@ def create_app(settings: Settings | None = None, ctx: Context | None = None) -> 
             log.info("WhatsApp bot enabled via Twilio (%s) from %s", settings.twilio_mode, settings.twilio_whatsapp_from)
         log.info("kettu ready: speech=%s llm=%s supabase=%s",
                  type(context.speech).__name__, type(context.llm).__name__, context.store.enabled)
-        yield
-        poll_task = getattr(app.state, "twilio_poller", None)
-        if poll_task:
-            poll_task.cancel()
-        await context.jobs.stop()
+
+        async def sweep_private_state():
+            while True:
+                await asyncio.sleep(30)
+                for name in ("bot", "twilio_bot"):
+                    bot = getattr(app.state, name, None)
+                    if bot:
+                        bot.sweep()
+                media = getattr(app.state, "media", None)
+                if media:
+                    media._sweep()
+
+        sweeper = asyncio.create_task(sweep_private_state())
+        try:
+            yield
+        finally:
+            tasks = [sweeper]
+            poll_task = getattr(app.state, "twilio_poller", None)
+            if poll_task:
+                tasks.append(poll_task)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await context.jobs.stop()
+            await context.store.close()
 
     app = FastAPI(title="Kettu API", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(RequestGuard, settings=settings)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

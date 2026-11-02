@@ -31,8 +31,8 @@ class Understanding(BaseModel):
 
 
 class ReplyDraft(BaseModel):
-    target_text: str
-    back_translation: str
+    target_text: str = Field(min_length=1, max_length=900)
+    back_translation: str = Field(min_length=1, max_length=2000)
 
 
 class NoteResult(BaseModel):
@@ -49,6 +49,7 @@ class NoteResult(BaseModel):
     missing_facts: list[str] = []
     # False when no AI key is set: the server cannot translate, and the app says so instead of faking it.
     translation_live: bool = True
+    speech_live: bool = True
     timings_ms: dict[str, int] = {}
 
 

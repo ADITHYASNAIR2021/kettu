@@ -51,7 +51,7 @@ alter table daily_budget enable row level security;
 alter table wa_prefs enable row level security;
 
 -- Handy views for the progress post
-create or replace view kettu_stats as
+create or replace view kettu_stats with (security_invoker = true) as
 select
   count(distinct device_id) filter (where kind = 'note' and status = 'ok') as unique_devices,
   count(*) filter (where kind = 'note' and status = 'ok') as notes,
@@ -59,9 +59,13 @@ select
   percentile_cont(0.5) within group (order by latency_ms) filter (where kind = 'note' and status = 'ok') as median_note_ms
 from usage_events;
 
-create or replace view kettu_thumbs as
+create or replace view kettu_thumbs with (security_invoker = true) as
 select lang, kind,
   count(*) filter (where rating = 1) as up,
   count(*) filter (where rating = -1) as down,
   round(100.0 * count(*) filter (where rating = 1) / nullif(count(*), 0), 1) as up_pct
 from feedback group by lang, kind order by lang, kind;
+
+-- Views must not bypass RLS or expose aggregate usage through the public API.
+revoke all on public.kettu_stats, public.kettu_thumbs from anon, authenticated;
+grant select on public.kettu_stats, public.kettu_thumbs to service_role;

@@ -41,6 +41,7 @@ class SpeechService(Protocol):
 
 
 class GnaniSpeech:
+    live = True
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None):
         self.s = settings
         self._client = client or httpx.AsyncClient(
@@ -171,6 +172,8 @@ class GnaniSpeech:
 
 class MockSpeech:
     """No network. Lets the whole product run without keys."""
+
+    live = False
 
     async def transcribe(
         self, wav: Path, language_code: str, previous_text: str = "", keyterms: list[str] | None = None

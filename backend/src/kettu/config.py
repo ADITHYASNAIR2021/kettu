@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     timbre_voice_male: str = "Avinash"
     # "mock" runs the whole app without any paid API (UI work, tests, demos of the flow)
     speech_provider: Literal["gnani", "mock"] = "gnani"
+    require_live_models: bool = False  # set on hosted deployments; never silently serve canned output
 
     # LLM for translation, gist, orders, replies. Swap providers with one value.
     llm_provider: Literal["anthropic", "gemini", "mock"] = "anthropic"
@@ -56,6 +57,9 @@ class Settings(BaseSettings):
     # Whole service per IST day
     daily_stt_seconds_cap: float = 6000.0
     daily_tts_chars_cap: int = 60000
+    daily_operations_cap: int = Field(default=1000, ge=1)
+    requests_per_minute: int = Field(default=120, ge=1)
+    max_active_requests: int = Field(default=8, ge=1)
 
     job_ttl_s: int = 600
     work_dir: str = ""  # empty = system temp

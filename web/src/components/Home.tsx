@@ -27,12 +27,17 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose }: 
   const rec = useRecorder((blob) => onAudio(blob, `recording${blob.type.includes("mp4") ? ".m4a" : ".webm"}`));
   const mine = lang(prefs.myLang);
   const [loadingSample, setLoadingSample] = useState(false);
+  const [sampleError, setSampleError] = useState(false);
 
   const trySample = async () => {
     setLoadingSample(true);
+    setSampleError(false);
     try {
       const resp = await fetch(SAMPLE_URL);
-      if (resp.ok) onAudio(await resp.blob(), "site-worker-bengali.ogg");
+      if (!resp.ok) throw new Error("Sample unavailable");
+      onAudio(await resp.blob(), "site-worker-bengali.ogg");
+    } catch {
+      setSampleError(true);
     } finally {
       setLoadingSample(false);
     }
@@ -46,6 +51,7 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose }: 
       </div>
 
       {notice && <div className="alert" role="status">{notice}</div>}
+      {limits?.speech_live === false && <div className="alert" role="status">{t("demo_mode")}</div>}
       {limits && !limits.service_open && (
         <div className="alert"><strong>{t("waitlist_title")}.</strong> {t("err_service_budget")}</div>
       )}
@@ -90,6 +96,7 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose }: 
           <Play /> {t("try_sample")}
         </button>
         <p className="small" style={{ margin: "-4px 4px 0" }}>{t("sample_hint")}</p>
+        {sampleError && <div className="alert" role="alert">{t("err_offline")}</div>}
 
         <div className="card rec" style={{ padding: 14 }}>
           <button

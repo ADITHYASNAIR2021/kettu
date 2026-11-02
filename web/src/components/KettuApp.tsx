@@ -25,6 +25,10 @@ function sharedParam(): string | null {
   return new URLSearchParams(window.location.search).get("shared");
 }
 
+function isSharedToken(value: string | null): value is string {
+  return value === "1" || /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(value ?? "");
+}
+
 // Rendered client-only (see page.tsx), so first state can read localStorage directly.
 export default function KettuApp() {
   const [prefs, setPrefsState] = useState<Prefs>(loadPrefs);
@@ -35,9 +39,14 @@ export default function KettuApp() {
   const [orders, setOrders] = useState(false);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [notice, setNotice] = useState<string | null>(() =>
-    shared && shared !== "1" ? translator(loadPrefs().uiLang)("share_missing") : null,
+    shared && !isSharedToken(shared) ? translator(loadPrefs().uiLang)(shared === "too_big" ? "err_too_big" : "share_missing") : null,
   );
-  const [sheet, setSheet] = useState<"reply" | "compose" | "settings" | null>(null);
+  const [sheet, setSheetState] = useState<"reply" | "compose" | "settings" | null>(null);
+  const dialogTrigger = useRef<HTMLElement | null>(null);
+  const setSheet = useCallback((name: "reply" | "compose" | "settings" | null) => {
+    if (name) dialogTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSheetState(name);
+  }, []);
   const [composeText, setComposeText] = useState("");
   const [dragging, setDragging] = useState(false);
   const abort = useRef<AbortController | null>(null);
@@ -59,7 +68,7 @@ export default function KettuApp() {
 
   const process = useCallback(
     async (blob: Blob, filename: string) => {
-      if (!prefs.myLang) return;
+      if (!prefs.myLang || !prefs.consented) return;
       abort.current?.abort();
       const ctl = new AbortController();
       abort.current = ctl;
@@ -71,6 +80,7 @@ export default function KettuApp() {
           audio: blob, filename, myLang: prefs.myLang, deviceId: device,
           mode: orders ? "orders" : "listen", keyterms: prefs.keyterms,
         });
+        if (ctl.signal.aborted) return;
         setView({ name: "working", phase: { kind: "job", stage: "queued", position } });
         const result = await waitForJob(
           job_id,
@@ -89,7 +99,7 @@ export default function KettuApp() {
         refreshLimits(device);
       }
     },
-    [prefs.myLang, prefs.keyterms, device, orders, t, refreshLimits],
+    [prefs.myLang, prefs.consented, prefs.keyterms, device, orders, t, refreshLimits],
   );
 
   // First load: limits, and pick up any voice note shared from WhatsApp.
@@ -97,13 +107,15 @@ export default function KettuApp() {
     refreshLimits(device);
     if (!shared) return;
     window.history.replaceState(null, "", "/");
-    if (shared === "1") {
-      takeSharedAudio().then((f) => {
+    if (isSharedToken(shared)) {
+      takeSharedAudio(shared).then((f) => {
         if (f) pendingShare.current = f;
         else setNotice(translator(loadPrefs().uiLang)("share_missing"));
       });
     }
   }, [device, shared, refreshLimits]);
+
+  useEffect(() => () => abort.current?.abort(), []);
 
   // A shared note waits until the person has finished first-run setup.
   useEffect(() => {
@@ -142,14 +154,16 @@ export default function KettuApp() {
     document.documentElement.lang = prefs.uiLang;
   }, [prefs.uiLang]);
 
-  const ctx = useMemo(() => ({ t, prefs, setPrefs, device }), [t, prefs, setPrefs, device]);
+  const ctx = useMemo(() => ({ t, prefs, setPrefs, device, dialogTrigger }), [t, prefs, setPrefs, device]);
   const onboarded = Boolean(prefs.myLang && prefs.consented);
 
   return (
     <AppContext.Provider value={ctx}>
-      <main className={`shell${dragging ? " dropzone-active" : ""}`} data-drop={t("drop")} lang={htmlLang(prefs.uiLang)}>
+      <main inert={sheet !== null} className={`shell${dragging ? " dropzone-active" : ""}`} data-drop={t("drop")} lang={htmlLang(prefs.uiLang)}>
         <header className="topbar">
-          <button className="wordmark" onClick={() => view.name !== "working" && setView({ name: "home" })} aria-label="Kettu">
+          <button className="wordmark" onClick={() => {
+            if (view.name !== "working") { setAudio(null); setView({ name: "home" }); }
+          }} aria-label="Kettu">
             <b>Kettu</b><span lang="ml">കേട്ടു</span>
           </button>
           {onboarded && (
@@ -169,6 +183,7 @@ export default function KettuApp() {
             phase={view.phase}
             onCancel={() => {
               abort.current?.abort();
+              setAudio(null);
               setView({ name: "home" });
             }}
           />
@@ -189,7 +204,7 @@ export default function KettuApp() {
         )}
 
         <footer className="small" style={{ marginTop: "auto", textAlign: "center", paddingTop: 12 }}>
-          Built on Gnani Prisma &amp; Timbre · nothing is stored
+          Built on Gnani Prisma &amp; Timbre · <a href="/privacy">{t("privacy")}</a>
         </footer>
       </main>
 

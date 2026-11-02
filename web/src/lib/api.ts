@@ -23,6 +23,7 @@ export type NoteResult = {
   same_language: boolean;
   missing_facts: string[];
   translation_live: boolean;
+  speech_live?: boolean;
   timings_ms: Record<string, number>;
 };
 
@@ -43,7 +44,7 @@ export type JobState = {
 };
 
 export type ReplyDraft = { target_text: string; back_translation: string; source_text: string };
-export type Limits = { notes_left: number; replies_left: number; service_open: boolean; translation_live?: boolean };
+export type Limits = { notes_left: number; replies_left: number; service_open: boolean; translation_live?: boolean; speech_live?: boolean };
 export type Voice = "female" | "male";
 
 export class ApiError extends Error {
@@ -68,8 +69,11 @@ async function parse<T>(resp: Response): Promise<T> {
 
 async function call(input: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(`${API_URL}${input}`, init);
-  } catch {
+    return await fetch(`${API_URL}${input}`, { ...init, signal: init?.signal ?? AbortSignal.timeout(120_000) });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new ApiError("model_timeout", "Kettu took too long to respond. Please try again.");
+    }
     throw new ApiError("offline", "Can't reach Kettu. Check your internet and try again.");
   }
 }
@@ -102,7 +106,9 @@ export async function waitForJob(
   signal?: AbortSignal,
 ): Promise<NoteResult> {
   let misses = 0;
+  const deadline = Date.now() + 15 * 60_000;
   for (;;) {
+    if (Date.now() > deadline) throw new ApiError("model_timeout", "This note is taking too long. Please try again later.");
     if (signal?.aborted) throw new ApiError("aborted", "Cancelled.");
     let state: JobState;
     try {

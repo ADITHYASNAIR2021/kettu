@@ -63,8 +63,9 @@ export function Onboarding() {
         <p style={{ margin: 0, fontSize: 18 }}>{t("consent_body")}</p>
         <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
           <li>Gnani AI · Prisma (speech to text), Timbre (voice)</li>
-          <li>Translation · hosted AI model</li>
+          <li>Translation · Google Gemini / Anthropic</li>
         </ul>
+        <a href="/privacy" target="_blank" rel="noopener noreferrer">{t("privacy")}</a>
       </div>
       <button className="btn btn-primary btn-block" onClick={() => setPrefs({ consented: true })}>
         {t("agree")}

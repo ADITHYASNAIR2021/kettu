@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ApiError, previewReply, speakReply, type ReplyDraft, type Voice } from "@/lib/api";
 import { errorText } from "@/lib/i18n";
 import { htmlLang, lang, LANGUAGES, type LangCode } from "@/lib/languages";
@@ -9,6 +9,7 @@ import { useApp } from "./AppContext";
 import { Close, Download, Mic, Share, Speaker, Stop } from "./Icons";
 import { useObjectUrl } from "./useObjectUrl";
 import { mmss, useRecorder } from "./useRecorder";
+import { useDialog } from "./useDialog";
 
 type Props = {
   from: LangCode;
@@ -25,6 +26,7 @@ export const MAX_REPLY_CHARS = 700;
 
 export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent, compose, initialText }: Props) {
   const { t, prefs, setPrefs, device } = useApp();
+  const dialog = useDialog(onClose);
   const [to, setTo] = useState<LangCode>(initialTo);
   const [text, setText] = useState((initialText ?? "").slice(0, MAX_REPLY_CHARS));
   const [draft, setDraft] = useState<ReplyDraft | null>(null);
@@ -49,7 +51,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
     }
   };
 
-  const rec = useRecorder((blob) => translate({ audio: blob }));
+  const rec = useRecorder((blob) => translate({ audio: blob }), 60);
 
   const speak = async () => {
     if (!draft) return;
@@ -65,12 +67,6 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
     }
   };
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const theirs = lang(to);
   const mine = lang(from);
   const filename = `kettu-reply-${theirs?.name.toLowerCase() ?? "audio"}.mp3`;
@@ -78,7 +74,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
   return (
     <>
       <div className="sheet-backdrop" onClick={onClose} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={compose ? t("compose_title") : t("reply_title")}>
+      <div ref={dialog} tabIndex={-1} className="sheet" role="dialog" aria-modal="true" aria-label={compose ? t("compose_title") : t("reply_title")}>
         <div className="sheet-inner">
           <div className="grab" />
           <div className="row">
@@ -94,7 +90,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
             <>
               <label className="stack" style={{ gap: 6 }}>
                 <span className="eyebrow">{t("reply_to")}</span>
-                <select className="input" value={to} onChange={(e) => setTo(e.target.value as LangCode)}>
+                <select className="input" value={to} disabled={busy !== null || rec.recording} onChange={(e) => setTo(e.target.value as LangCode)}>
                   {LANGUAGES.filter((l) => l.code !== from).map((l) => (
                     <option key={l.code} value={l.code}>{l.native} · {l.name}</option>
                   ))}
@@ -123,13 +119,14 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
               <textarea
                 className="input"
                 rows={3}
+                disabled={busy !== null || rec.recording}
                 maxLength={MAX_REPLY_CHARS}
                 lang={htmlLang(from)}
                 placeholder={t("placeholder")}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
               />
-              <button className="btn btn-primary btn-block" disabled={!text.trim() || busy !== null}
+              <button className="btn btn-primary btn-block" disabled={!text.trim() || busy !== null || rec.recording}
                       onClick={() => translate({ text })}>
                 {busy === "translate" ? "…" : t("translate")}
               </button>
@@ -153,7 +150,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
                   </button>
                 ))}
               </div>
-              <button className="btn btn-leaf btn-block" onClick={speak} disabled={busy !== null}>
+              <button className="btn btn-leaf btn-block" onClick={speak} disabled={busy !== null || repliesLeft === 0}>
                 <Speaker /> {busy === "speak" ? t("making_voice") : t("make_voice")}
               </button>
               <button className="btn btn-ghost btn-block" onClick={() => setDraft(null)} disabled={busy !== null}>
