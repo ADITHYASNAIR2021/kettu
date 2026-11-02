@@ -174,10 +174,12 @@ export async function translateText(opts: {
   fromLang: LangCode | null;
   toLang: LangCode;
   deviceId: string;
+  signal?: AbortSignal;
 }): Promise<TextTranslation> {
   return parse(
     await call("/v1/translate", {
       method: "POST",
+      signal: opts.signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: opts.text, from_lang: opts.fromLang, to_lang: opts.toLang, device_id: opts.deviceId }),
     }),

@@ -7,6 +7,7 @@ import { useApp } from "./AppContext";
 import { Close } from "./Icons";
 import { useDialog } from "./useDialog";
 import { InstallButton } from "./Install";
+import { feedbackSound } from "@/lib/sounds";
 
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const { t, prefs, setPrefs } = useApp();
@@ -33,6 +34,13 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
           </div>
 
           <InstallButton />
+
+          <label className="toggle card">
+            <input type="checkbox" checked={prefs.sounds} onChange={(event) => {
+              const enabled = event.target.checked; setPrefs({ sounds: enabled }); feedbackSound(enabled);
+            }} /><span className="track" />
+            <span className="stack"><strong>{t("sound_feedback")}</strong><span className="small">{t("sound_feedback_hint")}</span></span>
+          </label>
 
           <label className="stack" style={{ gap: 6 }}>
             <span className="eyebrow">{t("my_language")}</span>

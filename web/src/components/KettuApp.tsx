@@ -19,10 +19,14 @@ import { InstallButton, InstallSheet } from "./Install";
 import { SavedCards } from "./SavedCards";
 import type { ReplySeed } from "@/lib/cards";
 import { readPending, writePending, type PendingJob } from "@/lib/pending-job";
+import { ConversationMode } from "./ConversationMode";
+import { DemoGallery } from "./DemoGallery";
 
 type View =
   | { name: "home" }
   | { name: "saved" }
+  | { name: "conversation"; receipt?: PendingJob }
+  | { name: "demos" }
   | { name: "working"; phase: Phase }
   | { name: "result"; result: NoteResult };
 
@@ -59,6 +63,7 @@ export default function KettuApp() {
   const [replySeed, setReplySeed] = useState<ReplySeed | null>(null);
   const [pending, setPending] = useState<PendingJob | null>(readPending);
   const [uploading, setUploading] = useState(false);
+  const [demo, setDemo] = useState<string | null>(null);
   const [recoveryWarning, setRecoveryWarning] = useState(false);
   const inFlight = useRef(false);
   const [dragging, setDragging] = useState(false);
@@ -78,6 +83,11 @@ export default function KettuApp() {
   const refreshLimits = useCallback((id: string) => {
     getLimits(id).then(setLimits).catch(() => undefined);
   }, []);
+  const refreshUsage = useCallback(() => refreshLimits(device), [device, refreshLimits]);
+  const goHome = useCallback((message?: string) => {
+    if (message) setNotice(message);
+    setView({ name: "home" });
+  }, []);
 
   const remember = useCallback((job: PendingJob | null) => {
     setPending(job);
@@ -93,6 +103,7 @@ export default function KettuApp() {
       }, ctl.signal);
       if (ctl.signal.aborted) return;
       remember(null);
+      setDemo(job.demo ?? null);
       setView({ name: "result", result });
       setOrders(false);
     } catch (error) {
@@ -104,8 +115,8 @@ export default function KettuApp() {
   }, [remember, t, device, refreshLimits]);
 
   const process = useCallback(
-    async (blob: Blob, filename: string) => {
-      if (!prefs.myLang || !prefs.consented || !online || pending || inFlight.current) return;
+    async (blob: Blob, filename: string, demoId?: string) => {
+      if (!prefs.myLang || !prefs.consented || !online || pending || inFlight.current || view.name === "conversation") return;
       inFlight.current = true;
       setUploading(true);
       abort.current?.abort();
@@ -113,13 +124,14 @@ export default function KettuApp() {
       abort.current = ctl;
       setNotice(null);
       setAudio(blob);
+      setDemo(demoId ?? null);
       setView({ name: "working", phase: { kind: "upload" } });
       try {
         const { job_id, position } = await submitNote({
           audio: blob, filename, myLang: prefs.myLang, deviceId: device,
           mode: orders ? "orders" : "listen", keyterms: prefs.keyterms,
         });
-        const receipt = { id: job_id, myLang: prefs.myLang, submittedAt: Date.now() };
+        const receipt = { id: job_id, myLang: prefs.myLang, submittedAt: Date.now(), ...(demoId ? { demo: demoId } : {}) };
         remember(receipt); // Keep the accepted receipt even if Back was pressed during the upload.
         setUploading(false);
         if (ctl.signal.aborted) return;
@@ -137,7 +149,7 @@ export default function KettuApp() {
         refreshLimits(device);
       }
     },
-    [prefs.myLang, prefs.consented, prefs.keyterms, device, orders, t, refreshLimits, online, pending, remember, poll],
+    [prefs.myLang, prefs.consented, prefs.keyterms, device, orders, t, refreshLimits, online, pending, remember, poll, view.name],
   );
 
   // First load: limits, and pick up any voice note shared from WhatsApp.
@@ -157,7 +169,7 @@ export default function KettuApp() {
 
   // A shared note waits until the person has finished first-run setup.
   useEffect(() => {
-    if (!prefs.myLang || !prefs.consented || pending || uploading || !online) return;
+    if (!prefs.myLang || !prefs.consented || pending || uploading || !online || view.name === "conversation") return;
     const id = setInterval(() => {
       const f = pendingShare.current;
       if (f) {
@@ -166,7 +178,7 @@ export default function KettuApp() {
       }
     }, 150);
     return () => clearInterval(id);
-  }, [prefs.myLang, prefs.consented, process, pending, uploading, online]);
+  }, [prefs.myLang, prefs.consented, process, pending, uploading, online, view.name]);
 
   // Drag and drop anywhere on desktop.
   useEffect(() => {
@@ -202,7 +214,7 @@ export default function KettuApp() {
     <AppContext.Provider value={ctx}>
       <main inert={sheet !== null} className={`shell${dragging ? " dropzone-active" : ""}`} data-drop={t("drop")} lang={htmlLang(prefs.uiLang)}>
         <header className="topbar">
-          <button className="wordmark" onClick={() => {
+          <button className="wordmark" disabled={view.name === "conversation"} onClick={() => {
             if (view.name !== "working") { setAudio(null); setView({ name: "home" }); }
           }} aria-label="Kettu">
             <b>Kettu</b><span lang="ml">കേട്ടു</span>
@@ -220,6 +232,7 @@ export default function KettuApp() {
         {onboarded && view.name === "home" && pending && <section className="card stack" aria-label={t("pending_note")}>
           <h2 className="title">{t("pending_note")}</h2><p>{t("pending_hint")}</p>
           <button className="btn btn-primary btn-block" disabled={!online || uploading} onClick={() => {
+            if (pending.conversation) { setView({ name: "conversation", receipt: pending }); return; }
             abort.current?.abort(); const ctl = new AbortController(); abort.current = ctl;
             setNotice(null); setView({ name: "working", phase: { kind: "job", stage: "queued", position: 0 } });
             void poll(pending, ctl);
@@ -232,15 +245,20 @@ export default function KettuApp() {
         {onboarded && view.name === "home" && (
           <Home onAudio={process} orders={orders} setOrders={setOrders} limits={limits} notice={notice}
                 noteBlocked={Boolean(pending) || uploading} onSaved={() => setView({ name: "saved" })}
+                onDemo={() => setView({ name: "demos" })} onConversation={() => setView({ name: "conversation" })}
                 onCompose={() => { setComposeText(""); setSheet("compose"); }} />
         )}
 
         {onboarded && view.name === "home" && uploading && <p role="status">{t("stage_upload")}</p>}
         {onboarded && view.name === "saved" && <SavedCards onBack={() => setView({ name: "home" })} onReply={openReply} />}
+        {onboarded && view.name === "demos" && <DemoGallery previous={demo} onBack={() => setView({ name: "home" })} onAudio={process} />}
+        {onboarded && view.name === "conversation" && <ConversationMode initialJob={view.receipt}
+          onAccepted={remember} onConsumed={remember} onSpent={refreshUsage} onBack={goHome} limits={limits} />}
 
         {onboarded && view.name === "working" && (
           <Working
             phase={view.phase}
+            targetLanguage={pending?.myLang}
             onCancel={() => {
               abort.current?.abort();
               setAudio(null);
@@ -254,6 +272,7 @@ export default function KettuApp() {
             key={view.result.revision ?? 0}
             result={view.result}
             audio={audio}
+            onDemo={demo ? () => setView({ name: "demos" }) : undefined}
             onReply={openReply}
             onUpdate={(result) => setView({ name: "result", result })}
             onSendOther={() => {

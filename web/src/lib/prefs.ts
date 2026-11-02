@@ -8,12 +8,13 @@ export type Prefs = {
   voice: Voice;
   keyterms: string[];
   consented: boolean;
+  sounds: boolean;
 };
 
 const KEY = "kettu:prefs:v1";
 const DEVICE_KEY = "kettu:device:v1";
 
-export const DEFAULT_PREFS: Prefs = { myLang: null, uiLang: "en", voice: "female", keyterms: [], consented: false };
+export const DEFAULT_PREFS: Prefs = { myLang: null, uiLang: "en", voice: "female", keyterms: [], consented: false, sounds: false };
 
 function safeGet(key: string): string | null {
   try {
@@ -42,6 +43,7 @@ export function loadPrefs(): Prefs {
       voice: p.voice === "male" ? "male" : "female",
       keyterms: Array.isArray(p.keyterms) ? p.keyterms.filter((k: unknown) => typeof k === "string").slice(0, 50) : [],
       consented: Boolean(p.consented),
+      sounds: p.sounds === true,
     };
   } catch {
     return { ...DEFAULT_PREFS };

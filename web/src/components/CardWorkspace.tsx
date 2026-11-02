@@ -57,7 +57,7 @@ export function CardWorkspace({ items = [], savedCard, language, sourceLanguage,
     </div>}
     {saveOpen && <section className="card stack" aria-label={t("save_device")}>
       <p className="small" style={{ margin: 0 }}>{t("device_storage_notice")}</p>
-      <label className="stack"><span className="eyebrow">{t("card_title")}</span>
+      <label className="stack"><span className="eyebrow">{t("card_nickname")}</span>
         <input className="input" maxLength={80} value={title} disabled={saving} onChange={(event) => { setTitle(event.target.value); setSaved(false); }} />
       </label>
       <button className="btn btn-primary btn-block" disabled={saving || !title.trim() || !values.length} onClick={persist}>

@@ -113,6 +113,8 @@ One instance (min 1, max 1) on purpose: the job queue and the Gnani request gate
 
 The installable release adds discoverable installation, device-only saved cards, checked confirmation drafts and recovery after refresh. See [release behavior, verification and device-test checklist](docs/INSTALLABLE-RELEASE.md).
 
+Home also offers **Conversation mode**: two people choose languages, take short turns, check their words and pass the phone. A fictional scenario gallery, gentle motion and opt-in local sounds add personality. See [conversation flow and verification](docs/CONVERSATION.md).
+
 * Handles notes up to 3 minutes: split at pauses into ≤ 28 s chunks, each sent to Prisma with the previous text for context.
 * Same per-person limits on both channels: 10 notes and 5 voice replies a day, plus a whole-service daily budget with a waitlist message instead of an error.
 * Replies shared from the PWA arrive as an audio file, not a voice-note bubble (a WhatsApp limit); the bot sends a true voice note.

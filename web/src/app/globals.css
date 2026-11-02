@@ -321,6 +321,32 @@ textarea.input:focus, input.input:focus, select.input:focus { outline: none; bor
 }
 
 /* ---------- entrance */
+.conversation-entry { display: flex; gap: 14px; align-items: center; text-align: left; color: var(--ink); width: 100%; }
+.conversation-entry > .stack { flex: 1; gap: 4px; }
+.conversation-dots { display: flex; flex-shrink: 0; }
+.conversation-dots i { font-style: normal; display: grid; place-items: center; width: 35px; height: 35px; border-radius: 50%; background: var(--laterite-soft); color: var(--laterite-deep); font-weight: 700; }
+.conversation-dots i + i { margin-left: -6px; background: var(--leaf-soft); color: var(--leaf); transform: translateY(8px); }
+.participant { padding: 14px; border-radius: 18px; border-left: 4px solid; }
+.participant-a { border-color: var(--laterite); background: var(--laterite-soft); }
+.participant-b { border-color: var(--leaf); background: var(--leaf-soft); }
+.turn-cue { text-align: center; padding: 28px 18px; border-radius: 26px; background: var(--laterite-soft); border: 1px solid var(--laterite); }
+.conversation[data-speaker="b"] > .turn-cue, .handoff[data-speaker="b"] > .turn-cue { background: var(--leaf-soft); border-color: var(--leaf); }
+.turn-cue .display { font-size: clamp(40px, 10vw, 58px); margin: 6px 0; }
+.turn-cue p { margin: 8px 0 0; }
+.conversation-message { padding: 14px; border-left: 3px solid; border-radius: 14px; margin-top: 14px; overflow-wrap: anywhere; }
+.conversation-message p { white-space: pre-wrap; }
+.conversation .translation { overflow-wrap: anywhere; }
+.conversation .action-complete { padding: 16px; }
+.demo-scenario > p { margin: 0; }
+.ready-reveal { display: flex; align-items: center; gap: 10px; color: var(--leaf); font-weight: 600; min-height: 34px; }
+.ready-wave { display: inline-flex; align-items: center; gap: 3px; width: 48px; overflow: hidden; animation: wave-to-words .65s ease forwards; }
+.ready-wave i { display: block; min-width: 4px; border-radius: 3px; background: currentColor; animation: ready-bar .35s ease both; }
+.ready-caption { animation: ready-words .6s ease both; }
+.action-complete input:checked, .confirmation-fields input:checked, .checklist input:checked { animation: gentle-check .2s ease-out; }
+@keyframes wave-to-words { 0%, 25% { width: 48px; opacity: 1; } 100% { width: 0; opacity: 0; } }
+@keyframes ready-bar { from { transform: scaleY(.25); } }
+@keyframes ready-words { from { opacity: .3; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes gentle-check { 50% { transform: scale(1.12); } }
 .reveal > * { animation: up .55s var(--ease) both; }
 .reveal > *:nth-child(2) { animation-delay: .06s; }
 .reveal > *:nth-child(3) { animation-delay: .12s; }

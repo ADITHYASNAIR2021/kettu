@@ -1,0 +1,18 @@
+{
+  "synthetic": true,
+  "voice": "Gnani stock female voice; no voice cloning",
+  "scenarios": [
+    {
+      "id": "college",
+      "file": "college-hinglish.mp3",
+      "language": "hi-IN",
+      "text": "कल शाम चार बजे library में मिलते हैं। Project के लिए तीन slides तैयार रखना। Final file अभी मत भेजना, पहले हम सब check करेंगे।"
+    },
+    {
+      "id": "weekend",
+      "file": "weekend-malayalam.mp3",
+      "language": "ml-IN",
+      "text": "ഞായറാഴ്ച രാവിലെ ഒൻപത് മണിക്ക് കഫേയിൽ കാണാം. നാലുപേർ വരും. മഴ പെയ്താൽ outdoor plan വേണ്ട, അകത്ത് ഇരിക്കാം."
+    }
+  ]
+}

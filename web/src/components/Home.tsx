@@ -1,13 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import type { Limits } from "@/lib/api";
 import { lang } from "@/lib/languages";
 import { useApp } from "./AppContext";
-import { Mic, Play, Speaker, Stop, Upload } from "./Icons";
+import { Mic, Speaker, Stop, Upload } from "./Icons";
 
-// Synthetic note (Gnani Timbre voice, fake names and amounts) so visitors can try Kettu without one of their own.
-const SAMPLE_URL = "/samples/site-worker-bengali.ogg";
 import { mmss, useRecorder } from "./useRecorder";
 
 type Props = {
@@ -18,30 +16,16 @@ type Props = {
   notice: string | null;
   onCompose: () => void;
   onSaved: () => void;
+  onDemo: () => void;
+  onConversation: () => void;
   noteBlocked: boolean;
 };
 
-export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, onSaved, noteBlocked }: Props) {
+export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, onSaved, onDemo, onConversation, noteBlocked }: Props) {
   const { t, prefs, online } = useApp();
   const file = useRef<HTMLInputElement>(null);
   const rec = useRecorder((blob) => onAudio(blob, `recording${blob.type.includes("mp4") ? ".m4a" : ".webm"}`));
   const mine = lang(prefs.myLang);
-  const [loadingSample, setLoadingSample] = useState(false);
-  const [sampleError, setSampleError] = useState(false);
-
-  const trySample = async () => {
-    setLoadingSample(true);
-    setSampleError(false);
-    try {
-      const resp = await fetch(SAMPLE_URL);
-      if (!resp.ok) throw new Error("Sample unavailable");
-      onAudio(await resp.blob(), "site-worker-bengali.ogg");
-    } catch {
-      setSampleError(true);
-    } finally {
-      setLoadingSample(false);
-    }
-  };
 
   return (
     <section className="stack reveal" style={{ gap: 16 }}>
@@ -55,6 +39,12 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, on
       {limits && !limits.service_open && (
         <div className="alert"><strong>{t("waitlist_title")}.</strong> {t("err_service_budget")}</div>
       )}
+
+      <button className="card conversation-entry" disabled={!online || noteBlocked || rec.recording || rec.starting} onClick={onConversation}>
+        <span className="conversation-dots" aria-hidden><i>A</i><i>B</i></span>
+        <span className="stack"><strong>{t("conversation_mode")}</strong><span className="small">{t("conversation_entry")}</span></span>
+        <span aria-hidden>↔</span>
+      </button>
 
       <div className="card stack">
         <p className="eyebrow">{t("how_title")}</p>
@@ -79,22 +69,21 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, on
             e.target.value = "";
           }}
         />
-        <button className="btn btn-primary btn-block" disabled={!online || noteBlocked || rec.recording} onClick={() => file.current?.click()}>
+        <button className="btn btn-primary btn-block" disabled={!online || noteBlocked || rec.recording || rec.starting} onClick={() => file.current?.click()}>
           <Upload /> {t("upload")}
         </button>
 
-        <button className="btn btn-ghost btn-block sample-btn" onClick={trySample} disabled={loadingSample || !online || noteBlocked || rec.recording}>
-          <Play /> {t("try_sample")}
+        <button className="btn btn-ghost btn-block sample-btn" onClick={onDemo} disabled={!online || noteBlocked || rec.recording || rec.starting}>
+          {t("pick_scenario")}
         </button>
-        <p className="small" style={{ margin: "-4px 4px 0" }}>{t("sample_hint")}</p>
-        {sampleError && <div className="alert" role="alert">{t("err_offline")}</div>}
+        <p className="small" style={{ margin: "-4px 4px 0" }}>{t("demo_intro")}</p>
 
         <div className="card rec" style={{ padding: 14 }}>
           <button
             className="rec-btn"
             data-on={rec.recording}
             onClick={rec.toggle}
-            disabled={!rec.recording && (!online || noteBlocked)}
+            disabled={rec.starting || (!rec.recording && (!online || noteBlocked))}
             aria-label={rec.recording ? t("stop") : t("record")}
           >
             {rec.recording ? <Stop size={28} /> : <Mic size={30} />}
@@ -126,7 +115,7 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, on
 
       <div className="divider">{t("or")}</div>
 
-      <button className="btn btn-leaf btn-block" onClick={onCompose} disabled={!online || rec.recording}>
+      <button className="btn btn-leaf btn-block" onClick={onCompose} disabled={!online || rec.recording || rec.starting}>
         <Speaker /> {t("compose")}
       </button>
       <button className="btn btn-ghost btn-block" onClick={onSaved}>{t("saved_cards")}</button>

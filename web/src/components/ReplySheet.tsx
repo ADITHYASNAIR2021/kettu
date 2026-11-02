@@ -91,7 +91,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
             <>
               <label className="stack" style={{ gap: 6 }}>
                 <span className="eyebrow">{t("reply_to")}</span>
-                <select className="input" value={to} disabled={busy !== null || rec.recording} onChange={(e) => setTo(e.target.value as LangCode)}>
+                <select className="input" value={to} disabled={busy !== null || rec.recording || rec.starting} onChange={(e) => setTo(e.target.value as LangCode)}>
                   {LANGUAGES.filter((l) => l.code !== from || l.code === initialTo).map((l) => (
                     <option key={l.code} value={l.code}>{l.native} · {l.name}</option>
                   ))}
@@ -101,7 +101,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
               <p style={{ margin: 0, fontWeight: 600 }}>{t("type_or_speak", { lang: mine?.native ?? "" })}</p>
 
               <div className="card rec" style={{ padding: 14 }}>
-                <button className="rec-btn" data-on={rec.recording} onClick={rec.toggle} disabled={busy !== null || (!online && !rec.recording)}
+                <button className="rec-btn" data-on={rec.recording} onClick={rec.toggle} disabled={busy !== null || rec.starting || (!online && !rec.recording)}
                         aria-label={rec.recording ? t("stop") : t("speak")}>
                   {rec.recording ? <Stop size={28} /> : <Mic size={30} />}
                 </button>
@@ -120,7 +120,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
               <textarea
                 className="input"
                 rows={3}
-                disabled={busy !== null || rec.recording}
+                disabled={busy !== null || rec.recording || rec.starting}
                 maxLength={MAX_REPLY_CHARS}
                 lang={htmlLang(from)}
                 placeholder={t("placeholder")}
@@ -128,7 +128,7 @@ export function ReplySheet({ from, to: initialTo, onClose, repliesLeft, onSpent,
                 onChange={(e) => setText(e.target.value)}
               />
               <span className="small">{text.length}/700 {text.length > 700 ? t("confirmation_too_long") : ""}</span>
-              <button className="btn btn-primary btn-block" disabled={!online || text.length > 700 || !text.trim() || busy !== null || rec.recording}
+              <button className="btn btn-primary btn-block" disabled={!online || text.length > 700 || !text.trim() || busy !== null || rec.recording || rec.starting}
                       onClick={() => translate({ text })}>
                 {busy === "translate" ? "…" : t("translate")}
               </button>

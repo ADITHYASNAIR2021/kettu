@@ -15,6 +15,7 @@ function pickMime(): string {
 /** Tap-to-start / tap-to-stop recorder with live level bars. iPhone Safari records audio/mp4. */
 export function useRecorder(onDone: (blob: Blob) => void, maxSeconds = 180) {
   const [recording, setRecording] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [levels, setLevels] = useState<number[]>(() => Array(BARS).fill(0.05));
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +48,7 @@ export function useRecorder(onDone: (blob: Blob) => void, maxSeconds = 180) {
   const start = useCallback(async () => {
     if (acquiring.current || rec.current?.state === "recording") return;
     acquiring.current = true;
+    setStarting(true);
     const current = ++generation.current;
     setError(null);
     try {
@@ -110,6 +112,7 @@ export function useRecorder(onDone: (blob: Blob) => void, maxSeconds = 180) {
       setError("mic");
     } finally {
       acquiring.current = false;
+      setStarting(false);
     }
   }, [cleanup, maxSeconds]);
 
@@ -122,7 +125,7 @@ export function useRecorder(onDone: (blob: Blob) => void, maxSeconds = 180) {
     cleanup();
   }, [cleanup]);
 
-  return { recording, seconds, levels, error, start, stop, toggle: recording ? stop : start };
+  return { recording, starting, seconds, levels, error, start, stop, toggle: recording ? stop : start };
 }
 
 export function mmss(s: number) {

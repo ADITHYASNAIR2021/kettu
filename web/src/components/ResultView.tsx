@@ -14,6 +14,8 @@ import { CardWorkspace } from "./CardWorkspace";
 import type { ReplySeed } from "@/lib/cards";
 import { TranscriptEditor } from "./TranscriptEditor";
 import { CLARIFICATIONS, type Clarification } from "@/lib/clarifications";
+import { ReadyReveal } from "./ReadyReveal";
+import { feedbackSound } from "@/lib/sounds";
 
 type Segment = { text: string; entity: number | null };
 
@@ -51,9 +53,10 @@ const ENTITY_ICON: Record<Entity["type"], string> = {
 };
 
 /** FR14: hear the translation in your own language, for people who prefer listening to reading. */
-function ReadAloud({ text, lang: code }: { text: string; lang: LangCode }) {
+export function ReadAloud({ text, lang: code, label }: { text: string; lang: LangCode; label?: string }) {
   const { t, prefs, device, online } = useApp();
   const [state, setState] = useState<"idle" | "loading" | "playing" | "error">("idle");
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const player = useRef<HTMLAudioElement | null>(null);
   const objectUrl = useRef<string | null>(null);
   const generation = useRef(0);
@@ -73,6 +76,7 @@ function ReadAloud({ text, lang: code }: { text: string; lang: LangCode }) {
       return;
     }
     setState("loading");
+    setPlaybackError(null);
     const current = generation.current;
     try {
       if (player.current) {
@@ -89,17 +93,20 @@ function ReadAloud({ text, lang: code }: { text: string; lang: LangCode }) {
       audio.onended = () => setState("idle");
       await audio.play();
       if (current === generation.current) setState("playing");
-    } catch {
-      if (current === generation.current) setState("error");
+    } catch (error) {
+      if (current === generation.current) {
+        setState("error");
+        setPlaybackError(error instanceof ApiError ? errorText(t, error.code, error.message) : t("voice_playback_failed"));
+      }
     }
   };
 
   return (
-    <button className="btn btn-ghost btn-sm" onClick={toggle} disabled={state === "loading" || !online} aria-live="polite"
+    <div className="stack"><button className="btn btn-ghost btn-sm" onClick={toggle} disabled={state === "loading" || (state !== "playing" && !online)} aria-live="polite"
             title={state === "error" ? t("err_busy") : undefined}>
       {state === "playing" ? <Stop size={18} /> : <Speaker size={18} />}
-      {state === "loading" ? "…" : state === "playing" ? t("stop_listening") : t("listen")}
-    </button>
+      {state === "loading" ? "…" : state === "playing" ? t("stop_listening") : label ?? t("listen")}
+    </button>{playbackError && <span className="small" role="alert">{playbackError}</span>}</div>
   );
 }
 
@@ -172,14 +179,18 @@ function OtherLanguage({ result }: { result: NoteResult }) {
 }
 
 type Props = { result: NoteResult; audio: Blob | null; onReply: (seed: ReplySeed) => void; onSendOther: () => void;
-  onNew: () => void; onUpdate: (result: NoteResult) => void };
+  onNew: () => void; onUpdate: (result: NoteResult) => void; onDemo?: () => void };
 
-export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdate }: Props) {
+export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdate, onDemo }: Props) {
   const { t, device, prefs, online } = useApp();
   const [active, setActive] = useState<number | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [rating, setRating] = useState<1 | -1 | null>(null);
   const [reasonSent, setReasonSent] = useState(false);
+  const sounded = useRef(false);
+  useEffect(() => {
+    if (!sounded.current) { feedbackSound(prefs.sounds, "ready"); sounded.current = true; }
+  }, [prefs.sounds]);
   const audioUrl = useObjectUrl(audio);
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
@@ -243,6 +254,7 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
 
   return (
     <section className="stack reveal" style={{ gap: 14 }}>
+      <ReadyReveal />
       {result.speech_live === false && <div className="alert" role="status">{t("demo_mode")}</div>}
       <div className="row">
         <span className="badge" lang={htmlLang(result.detected_lang)}>
@@ -309,7 +321,7 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
             {result.order_items.map((it, i) => (
               <li key={i}>
                 <label>
-                  <input type="checkbox" />
+                  <input type="checkbox" onChange={(event) => { if (event.target.checked) feedbackSound(prefs.sounds); }} />
                   <span>{it.item}</span>
                   <span className="qty">{it.quantity} {it.unit}</span>
                 </label>
@@ -387,6 +399,7 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
       </div>
 
       <button className="btn btn-ghost btn-block" onClick={onNew}>{t("another")}</button>
+      {onDemo && <button className="btn btn-leaf btn-block" onClick={onDemo}>{t("different_scenario")}</button>}
     </section>
   );
 }

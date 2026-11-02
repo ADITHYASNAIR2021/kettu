@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { lang } from "@/lib/languages";
 import { useApp } from "./AppContext";
 import { Ear } from "./Icons";
+import type { LangCode } from "@/lib/languages";
 
 export type Phase = { kind: "upload" } | { kind: "job"; stage: string; position: number };
 
@@ -17,7 +18,7 @@ function current(phase: Phase): (typeof ORDER)[number] | "queued" {
   return "preparing";
 }
 
-export function Working({ phase, onCancel }: { phase: Phase; onCancel: () => void }) {
+export function Working({ phase, onCancel, targetLanguage, cancelDisabled = false }: { phase: Phase; onCancel: () => void; targetLanguage?: LangCode; cancelDisabled?: boolean }) {
   const { t, prefs } = useApp();
   // The free server sleeps when idle; the first upload then takes up to a minute. Say so instead of looking stuck.
   const [slow, setSlow] = useState(false);
@@ -34,7 +35,7 @@ export function Working({ phase, onCancel }: { phase: Phase; onCancel: () => voi
     upload: t("stage_upload"),
     preparing: t("stage_preparing"),
     transcribing: chunk && chunk !== "1/1" ? `${t("stage_transcribing")} · ${chunk}` : t("stage_transcribing"),
-    understanding: t("stage_understanding", { lang: lang(prefs.myLang)?.native ?? "" }),
+    understanding: t("stage_understanding", { lang: lang(targetLanguage ?? prefs.myLang)?.native ?? "" }),
   };
 
   return (
@@ -57,7 +58,7 @@ export function Working({ phase, onCancel }: { phase: Phase; onCancel: () => voi
         ))}
       </ul>
       <p className="small" style={{ margin: 0 }}>{t("processing_background")}</p>
-      <button className="btn btn-ghost btn-block" onClick={onCancel}>{t("back")}</button>
+      <button className="btn btn-ghost btn-block" disabled={cancelDisabled} onClick={onCancel}>{t("back")}</button>
     </section>
   );
 }

@@ -5,6 +5,7 @@ import type { DraftAction } from "@/lib/cards";
 import { htmlLang, type LangCode } from "@/lib/languages";
 import { useApp } from "./AppContext";
 import { Copy } from "./Icons";
+import { feedbackSound } from "@/lib/sounds";
 
 const FIELDS = ["task", "quantity", "person", "deadline"] as const;
 
@@ -20,7 +21,7 @@ type Props = {
 };
 
 export function ActionCard({ actions, setActions, reviewed, busy, available, language, sourceLanguage, onExtract }: Props) {
-  const { t } = useApp();
+  const { t, prefs } = useApp();
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
@@ -77,6 +78,7 @@ export function ActionCard({ actions, setActions, reviewed, busy, available, lan
               <input type="checkbox" disabled={busy} checked={item.completed} aria-label={t("complete_action", { n: index + 1 })}
                 onChange={(event) => {
                   const checked = event.currentTarget.checked;
+                  if (checked) feedbackSound(prefs.sounds);
                   setActions((previous) => previous.map((row) => row.id === item.id ? { ...row, completed: checked } : row));
                   setCopied(false);
                 }} />

@@ -5,12 +5,13 @@ import { CARD_FIELDS, type CardAction, type CardField, type ReplySeed } from "@/
 import { confirmationText } from "@/lib/confirmation";
 import { htmlLang, LANGUAGES, type LangCode } from "@/lib/languages";
 import { useApp } from "./AppContext";
+import { feedbackSound } from "@/lib/sounds";
 
 export function ConfirmationBuilder({ actions, language, sourceLanguage, onReply, onClose }: {
   actions: CardAction[]; language: LangCode; sourceLanguage: LangCode | null;
   onReply: (seed: ReplySeed) => void; onClose: () => void;
 }) {
-  const { t, online } = useApp();
+  const { t, online, prefs } = useApp();
   const [selection, setSelection] = useState<Record<string, CardField[]>>(() => Object.fromEntries(
     actions.map((action) => [action.id, CARD_FIELDS.filter((field) => action[field].trim())])));
   const [custom, setCustom] = useState<string | null>(null);
@@ -26,6 +27,7 @@ export function ConfirmationBuilder({ actions, language, sourceLanguage, onReply
         <input type="checkbox" checked={selection[action.id]?.includes(field) ?? false}
           onChange={(event) => {
             const checked = event.currentTarget.checked;
+            if (checked) feedbackSound(prefs.sounds);
             setSelection((previous) => ({ ...previous, [action.id]: checked
               ? CARD_FIELDS.filter((key) => key === field || previous[action.id]?.includes(key))
               : previous[action.id].filter((key) => key !== field) }));
