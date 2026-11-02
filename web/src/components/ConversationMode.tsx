@@ -13,7 +13,6 @@ import { ReadAloud } from "./ResultView";
 import { useRecorder, mmss } from "./useRecorder";
 import { useObjectUrl } from "./useObjectUrl";
 import { Working, type Phase } from "./Working";
-import { ReadyReveal } from "./ReadyReveal";
 
 export function ConversationMode({ initialJob, onAccepted, onConsumed, onSpent, onBack, limits }: {
   initialJob?: PendingJob; onAccepted: (job: PendingJob) => void; onConsumed: (job: null) => void;
@@ -172,7 +171,7 @@ export function ConversationMode({ initialJob, onAccepted, onConsumed, onSpent, 
         <button className="btn btn-primary" disabled={rec.recording || rec.starting || busy || !online || !typed.trim() || typed.length > 6000}>{busy ? t("translating_turn") : t("translate")}</button>
       </form>}
     </> : !handed ? <>
-      {busy ? <p role="status">{t("translating_turn")}</p> : <ReadyReveal />}
+      {busy && <p role="status">{t("translating_turn")}</p>}
       <h2 className="title">{t("check_turn", { person: person(config.speaker) })}</h2>
       {turn.from !== from && <p className="alert">{t("detected_different")}</p>}
       {audioUrl && <audio src={audioUrl} controls aria-label={t("play_original")} />}

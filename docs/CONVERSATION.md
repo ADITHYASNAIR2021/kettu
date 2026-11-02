@@ -12,7 +12,7 @@ Conversation history is held only in the mounted screen. Leaving asks for confir
 
 ## Other changes
 
-- A decorative waveform resolves into **Ready to check** when results arrive. Complete text is immediately available; this is not simulated live transcription or invented processing progress.
+- Results display their text directly. Decorative ready banners and processing rings have been removed; real processing stages and errors remain visible.
 - Actual backend stages remain visible, with the correct target language. Updates say **Translating…** while in progress.
 - Checked details have a short, gentle tick animation. All new motion respects `prefers-reduced-motion`.
 - **Gentle sounds** in Settings is off for both new and existing users until explicitly enabled. Short tones are generated locally, without files, network calls or microphone access. Blocked sound never interrupts the workflow.
@@ -41,4 +41,6 @@ A handoff can be returned to **Check this turn again** without duplicating its h
 
 No new backend endpoint, SQL table, cloud conversation history, account, background reminder, public leaderboard or automatic social sharing is introduced.
 
-The subsequent visual cleanup removes the Home WhatsApp tutorial and Settings personal-word list. Home uses a direct upload/record layout with secondary tools in a plain list. Background texture/rings, card shadows, oversized pill buttons and staggered card entrances have been removed or reduced. Existing personal-word preferences are no longer read or submitted by the web app. Conversation mode, saved cards, sample recordings and opt-in feedback remain available.
+The subsequent visual cleanup removes the Home WhatsApp tutorial and Settings personal-word list. Home uses a direct upload/record layout with secondary tools in a plain list. Background texture/rings, card shadows, oversized pill buttons and staggered card entrances have been removed or reduced. Existing personal-word preferences are no longer read or submitted by the web app. Conversation mode, saved cards, sample recordings and opt-in sound feedback remain available.
+
+The result screen also removes the automatic clarification panel and rating prompt. Source audio, detail highlighting and corrections are grouped together; additional languages and empty-card creation are available under More options. Generated cards and real missing-fact warnings are retained. Save confirmation is announced without duplicating the same visible status twice.

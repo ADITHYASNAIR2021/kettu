@@ -1,6 +1,6 @@
 # Checked notes and action cards
 
-This addition extends the web result flow with three connected features. The backend model schema also supports action extraction for order-mode notes. The WhatsApp bot does not yet expose an interactive transcript or card editor.
+The web result flow supports transcript correction, optional action cards and editable replies. The backend model schema also supports action extraction for order-mode notes. The WhatsApp bot does not yet expose an interactive transcript or card editor.
 
 ## Correct and retranslate
 
@@ -10,17 +10,17 @@ The original audio and original recognition text remain available for comparison
 
 ## Editable action card
 
-**Make an action card** extracts up to eight explicitly requested tasks. Each task has a description, quantity, responsible person and timing. Missing or ambiguous details must be empty; relative dates remain as spoken. The server rejects a task without a source quote in the current transcript and blanks individual details without a matching quote.
+For notes without an existing card, open **More options → Make an action card** to extract up to eight explicitly requested tasks. Each task has a description, quantity, responsible person and timing. Missing or ambiguous details must be empty; relative dates remain as spoken. The server rejects a task without a source quote in the current transcript and blanks individual details without a matching quote.
 
 This is a source-span check, not proof of semantic accuracy. The interface exposes the quoted words and lets the user correct each field, add or remove tasks, mark tasks done and copy the current card. User-edited fields drop their model source quotation. No external task, calendar entry or message is created.
 
 The ordinary listening flow keeps its existing cheap path. Cards are generated on request or alongside order extraction, rather than adding another AI call to every voice note. Corrections regenerate the card, replacing any card edits as explained in the editor.
 
-## Clarification reply drafts
+## Replies and optional tools
 
-The result offers three questions: confirm date/time, confirm quantity, and ask the speaker to repeat. Templates exist for all ten reading languages. The selected question is inserted in the user's reading language, matching the source language declared to the reply translator; it is not incorrectly treated as English when the user reads another language.
+The translation and primary reply action appear first. The automatic clarification-template panel and rating prompt have been removed. Users can write a question directly in the editable reply composer, or prepare a confirmation from a checked action card.
 
-The existing editable reply composer then handles translation, back-translation, approval and optional Gnani voice synthesis. Selecting a question does not spend TTS credits or send a message. Same-language replies are supported too.
+The reply composer handles translation, back-translation, approval and optional Gnani voice synthesis. Original audio, source-word highlighting and transcript correction are grouped under **What they said**. Extra translation languages, empty-card creation and alternate-language voice export are grouped under **More options**. Opening these groups makes no AI request. Missing-fact warnings remain visible outside them.
 
 ## API and data
 

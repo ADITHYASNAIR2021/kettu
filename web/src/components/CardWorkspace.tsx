@@ -64,7 +64,7 @@ export function CardWorkspace({ items = [], savedCard, language, sourceLanguage,
         {saving ? "…" : t("save_card")}</button>
       <button className="btn btn-ghost btn-block" disabled={saving} onClick={() => setSaveOpen(false)}>{t("cancel")}</button>
     </section>}
-    {saved && <p className="small" role="status">{t("card_saved")}</p>}
+    {saved && <p className="sr-only" role="status">{t("card_saved")}</p>}
     {error && <div className="alert" role="alert">{error}</div>}
     {confirming && <ConfirmationBuilder actions={values} language={language} sourceLanguage={sourceLanguage}
       onClose={() => setConfirming(false)} onReply={onReply} />}

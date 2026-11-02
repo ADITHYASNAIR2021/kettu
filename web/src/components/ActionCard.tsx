@@ -64,8 +64,7 @@ export function ActionCard({ actions, setActions, reviewed, busy, available, lan
           {editing ? t("done") : t("edit_actions")}
         </button>}
       </div>
-      <p className="small" style={{ margin: 0 }}>{t("action_card_hint")}</p>
-      {!actions.length && <p style={{ margin: 0 }}>{reviewed ? t("no_actions") : t("action_card_intro")}</p>}
+      {reviewed && !actions.length && <p style={{ margin: 0 }}>{t("no_actions")}</p>}
       {!reviewed && !actions.length && <button className="btn btn-leaf btn-block" disabled={busy || !available} onClick={onExtract}>
         {busy ? t("updating_note") : t("make_action_card")}
       </button>}

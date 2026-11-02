@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { lang } from "@/lib/languages";
 import { useApp } from "./AppContext";
-import { Ear } from "./Icons";
 import type { LangCode } from "@/lib/languages";
 
 export type Phase = { kind: "upload" } | { kind: "job"; stage: string; position: number };
@@ -40,10 +39,6 @@ export function Working({ phase, onCancel, targetLanguage, cancelDisabled = fals
 
   return (
     <section className="stack reveal" style={{ gap: 18, alignItems: "stretch" }} aria-live="polite">
-      <div className="rings" aria-hidden>
-        <i /><i /><i />
-        <div className="core"><Ear /></div>
-      </div>
       {slow && phase.kind === "upload" && (
         <div className="alert calm" style={{ justifyContent: "center" }}>{t("waking_up")}</div>
       )}

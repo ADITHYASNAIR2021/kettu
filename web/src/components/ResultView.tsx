@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ApiError, reviewNote, sendFeedback, speakReply, translateText, type Entity, type NoteResult, type TextTranslation,
+  ApiError, reviewNote, speakReply, translateText, type Entity, type NoteResult, type TextTranslation,
 } from "@/lib/api";
 import { errorText } from "@/lib/i18n";
 import { htmlLang, lang, LANGUAGES, type LangCode } from "@/lib/languages";
@@ -13,8 +13,6 @@ import { mmss } from "./useRecorder";
 import { CardWorkspace } from "./CardWorkspace";
 import type { ReplySeed } from "@/lib/cards";
 import { TranscriptEditor } from "./TranscriptEditor";
-import { CLARIFICATIONS, type Clarification } from "@/lib/clarifications";
-import { ReadyReveal } from "./ReadyReveal";
 import { feedbackSound } from "@/lib/sounds";
 
 type Segment = { text: string; entity: number | null };
@@ -47,10 +45,6 @@ function segments(text: string, entities: Entity[]): Segment[] {
   if (pos < text.length) out.push({ text: text.slice(pos), entity: null });
   return out;
 }
-
-const ENTITY_ICON: Record<Entity["type"], string> = {
-  time: "🕗", date: "📅", amount: "₹", quantity: "#", name: "👤", place: "📍",
-};
 
 /** FR14: hear the translation in your own language, for people who prefer listening to reading. */
 export function ReadAloud({ text, lang: code, label }: { text: string; lang: LangCode; label?: string }) {
@@ -185,8 +179,6 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
   const { t, device, prefs, online } = useApp();
   const [active, setActive] = useState<number | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [rating, setRating] = useState<1 | -1 | null>(null);
-  const [reasonSent, setReasonSent] = useState(false);
   const sounded = useRef(false);
   useEffect(() => {
     if (!sounded.current) { feedbackSound(prefs.sounds, "ready"); sounded.current = true; }
@@ -237,24 +229,21 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
     }
   };
 
-  const rate = (r: 1 | -1) => {
-    setRating(r);
-    if (r === 1) sendFeedback({ kind: "note", rating: 1, lang: result.my_lang, deviceId: device });
-  };
-  const reason = (why: string) => {
-    sendFeedback({ kind: "note", rating: -1, reason: why, lang: result.my_lang, deviceId: device });
-    setReasonSent(true);
-  };
-
   // Timbre takes up to ~900 characters; for very long notes, read the gist instead.
   const readAloudText =
     result.translation && result.translation.length <= 900 ? result.translation : (result.gist ?? "");
 
   const orderText = result.order_items?.map((i) => `☐ ${i.item} — ${i.quantity} ${i.unit}`.trim()).join("\n") ?? "";
 
+  const actionCard = (
+    <CardWorkspace items={result.action_items ?? []}
+      reviewed={result.actions_reviewed === true || Boolean(result.action_items?.length)}
+      busy={reviewing} available={live} language={result.my_lang} sourceLanguage={result.detected_lang}
+      onReply={onReply} onExtract={() => review(result.transcript, result.detected_lang)} />
+  );
+
   return (
     <section className="stack reveal" style={{ gap: 14 }}>
-      <ReadyReveal />
       {result.speech_live === false && <div className="alert" role="status">{t("demo_mode")}</div>}
       <div className="row">
         <span className="badge" lang={htmlLang(result.detected_lang)}>
@@ -264,11 +253,11 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
       </div>
 
       {result.gist && (
-        <div className="stack" style={{ gap: 6 }}>
-          <p className="eyebrow">{t("gist")}</p>
+        <details className="result-disclosure">
+          <summary>{t("gist")}</summary>
           <div className="gist" lang={htmlLang(result.my_lang)}>{result.gist}</div>
           <p className="small" style={{ margin: 0 }}>{t("ai_summary")}</p>
-        </div>
+        </details>
       )}
 
       {!live && !result.same_language ? (
@@ -290,22 +279,6 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
       )}
 
       {live && <MissingFacts facts={result.missing_facts ?? []} />}
-
-      {result.entities.length > 0 && (
-        <div className="chips" role="group">
-          {result.entities.map((e, i) => (
-            <button
-              key={i}
-              className="chip"
-              aria-pressed={active === i}
-              onClick={() => setActive(active === i ? null : i)}
-              lang={htmlLang(result.my_lang)}
-            >
-              <span aria-hidden>{ENTITY_ICON[e.type]}</span> {e.value}
-            </button>
-          ))}
-        </div>
-      )}
 
       {result.order_items && result.order_items.length > 0 && (
         <div className="card stack">
@@ -331,11 +304,36 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
         </div>
       )}
 
-      <details className="card orig" open={!result.translation || !live || active !== null}>
+      {canReply && (
+        <button className="btn btn-primary btn-block" disabled={!online} onClick={() => prefs.myLang && result.detected_lang && onReply({ text: "", from: prefs.myLang, to: result.detected_lang })}>
+          <Reply /> {t("reply_in", { lang: src?.native ?? "" })}
+        </button>
+      )}
+      {!canReply && <button className="btn btn-primary btn-block" disabled={!online} onClick={onSendOther}>
+        <Speaker /> {t("send_other")}
+      </button>}
+
+      <details className="result-disclosure orig" open={!result.translation || !live || active !== null}>
         <summary>
           <span className="eyebrow">{result.transcript_edited ? t("edited_words") : t("original")} · {src?.native}</span>
         </summary>
         <div className="stack" style={{ marginTop: 8 }}>
+          {result.entities.length > 0 && (
+            <div className="chips" role="group" aria-label={t("source_words")}>
+              {result.entities.map((e, i) => (
+                <button
+                  key={i}
+                  className="chip"
+                  aria-pressed={active === i}
+                  onClick={() => setActive(active === i ? null : i)}
+                  lang={htmlLang(result.my_lang)}
+                >
+                  {e.value}
+                </button>
+              ))}
+            </div>
+          )}
+
           <p className="transcript" lang={htmlLang(result.detected_lang)}>
             {segs.map((s, i) =>
               s.entity === null ? (
@@ -347,6 +345,8 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
           </p>
           {audioUrl && <audio controls src={audioUrl} preload="metadata" aria-label={t("play_original")} />}
           {!audioUrl && <p className="small">{t("audio_unavailable")}</p>}
+          <TranscriptEditor result={result} busy={reviewing} onReview={review} />
+          {reviewError && <div className="alert" role="alert">{reviewError}</div>}
           {result.transcript_edited && result.original_transcript && <details>
             <summary>{t("original_recognition")}</summary>
             <p className="transcript" lang={htmlLang(result.detected_lang)}>{result.original_transcript}</p>
@@ -354,52 +354,23 @@ export function ResultView({ result, audio, onReply, onSendOther, onNew, onUpdat
         </div>
       </details>
 
-      <TranscriptEditor result={result} busy={reviewing} onReview={review} />
-      {reviewError && <div className="alert" role="alert">{reviewError}</div>}
+      {Boolean(result.action_items?.length) && actionCard}
 
-      <CardWorkspace items={result.action_items ?? []} reviewed={result.actions_reviewed === true || Boolean(result.action_items?.length)}
-        busy={reviewing} available={live} language={result.my_lang} sourceLanguage={result.detected_lang}
-        onReply={onReply}
-        onExtract={() => review(result.transcript, result.detected_lang)} />
-
-      <OtherLanguage result={result} />
-
-      {result.detected_lang && prefs.myLang && live && <section className="card stack" aria-label={t("clarify_title")}>
-        <h2 className="title">{t("clarify_title")}</h2>
-        <p className="small" style={{ margin: 0 }}>{t("clarify_hint")}</p>
-        {(["date", "quantity", "repeat"] as Clarification[]).map((kind) => <button key={kind}
-          className="btn btn-ghost btn-block" disabled={reviewing || !online}
-          onClick={() => onReply({ text: CLARIFICATIONS[prefs.myLang!][kind], from: prefs.myLang!, to: result.detected_lang! })}>{t(`clarify_${kind}`)}</button>)}
-      </section>}
-
-      {canReply && (
-        <button className="btn btn-primary btn-block" disabled={!online} onClick={() => prefs.myLang && result.detected_lang && onReply({ text: "", from: prefs.myLang, to: result.detected_lang })}>
-          <Reply /> {t("reply_in", { lang: src?.native ?? "" })}
-        </button>
-      )}
-      <button className={`btn btn-block ${canReply ? "btn-ghost" : "btn-primary"}`} disabled={!online} onClick={onSendOther}>
-        <Speaker /> {t("send_other")}
-      </button>
-
-      <div className="card stack" style={{ padding: 16 }}>
-        <div className="feedback">
-          <span style={{ fontWeight: 600 }}>{t("was_right")}</span>
-          <span className="spacer" />
-          <button className="thumb" aria-pressed={rating === 1} onClick={() => rate(1)} aria-label="Yes">👍</button>
-          <button className="thumb" aria-pressed={rating === -1} onClick={() => rate(-1)} aria-label="No">👎</button>
+      <details className="result-disclosure">
+        <summary>{t("more_options")}</summary>
+        <div className="stack result-tools">
+          <OtherLanguage result={result} />
+          {!result.action_items?.length && actionCard}
+          {canReply && <button className="btn btn-ghost btn-block" disabled={!online} onClick={onSendOther}>
+            <Speaker /> {t("send_other")}
+          </button>}
         </div>
-        {rating === -1 && !reasonSent && (
-          <div className="row">
-            {(["wrong_language", "wrong_words", "bad_translation"] as const).map((r) => (
-              <button key={r} className="btn btn-ghost btn-sm" onClick={() => reason(r)}>{t(r)}</button>
-            ))}
-          </div>
-        )}
-        {(rating === 1 || reasonSent) && <span className="small">{t("thanks")}</span>}
-      </div>
+      </details>
 
-      <button className="btn btn-ghost btn-block" onClick={onNew}>{t("another")}</button>
-      {onDemo && <button className="btn btn-leaf btn-block" onClick={onDemo}>{t("different_scenario")}</button>}
+      <div className="row result-footer">
+        <button className="btn btn-ghost btn-sm" onClick={onNew}>{t("another")}</button>
+        {onDemo && <button className="btn btn-ghost btn-sm" onClick={onDemo}>{t("different_scenario")}</button>}
+      </div>
     </section>
   );
 }

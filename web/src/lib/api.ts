@@ -227,20 +227,6 @@ export async function speakReply(opts: {
   return resp.blob();
 }
 
-export async function sendFeedback(body: {
-  kind: "note" | "reply";
-  rating: 1 | -1;
-  reason?: string;
-  lang?: string;
-  deviceId: string;
-}): Promise<void> {
-  await call("/v1/feedback", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: body.kind, rating: body.rating, reason: body.reason, lang: body.lang, device_id: body.deviceId }),
-  }).catch(() => undefined);
-}
-
 export async function getLimits(deviceId: string): Promise<Limits> {
   return parse(await call(`/v1/limits?device_id=${encodeURIComponent(deviceId)}`, { cache: "no-store" }));
 }
