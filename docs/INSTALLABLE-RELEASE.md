@@ -42,6 +42,10 @@ The trial has not been run. Have native speakers check the scripts, localized UI
 
 ## Release and remaining device checks
 
+Feature release `874eb67f702907ac170a24eff76e887e948aa734` was pushed to the existing `main` branch. Vercel reported deployment success, and the public site at `https://kettu-gnani.vercel.app/` displayed Install Kettu and Saved cards. Its generated asset inventory and worker used the same production build ID, with no unexpanded template placeholders and `no-store` worker headers. [Live installation guide](evidence/pwa-install-live.png).
+
+The deployed Render API returned healthy status, exposed the review/job routes and allowed the exact Vercel origin in a CORS preflight. The deep health endpoint reported Gnani, LLM and Supabase healthy. One fictional live review extracted “60 bags”, “Maya” and “tomorrow at 8 AM”, preserved “do not pay before delivery” as a separate task, and left unspecified fields empty. This verifies deployment and one model response; it is not a general accuracy guarantee or a test of voice generation quality.
+
 Deploy the pending backend review route and web changes together through the existing GitHub/Vercel/Render setup. Vercel's root directory stays `web`, build command `npm run build`, and `NEXT_PUBLIC_API_URL` must point to `https://kettu-api.onrender.com`. Render must allow the exact deployed origin and use one backend process. No SQL migration is required. A PWA already installed from an older deployment does not prove these features are live.
 
 - Android Chrome: production installation, standalone launch, WhatsApp/audio Share menu, oversize/expired shares.
