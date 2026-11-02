@@ -99,14 +99,14 @@ export async function submitNote(opts: {
   myLang: LangCode;
   deviceId: string;
   mode: "listen" | "orders";
-  keyterms: string[];
+  keyterms?: string[];
 }): Promise<{ job_id: string; position: number }> {
   const form = new FormData();
   form.append("audio", opts.audio, opts.filename);
   form.append("my_lang", opts.myLang);
   form.append("device_id", opts.deviceId);
   form.append("mode", opts.mode);
-  if (opts.keyterms.length) form.append("keyterms", JSON.stringify(opts.keyterms));
+  if (opts.keyterms?.length) form.append("keyterms", JSON.stringify(opts.keyterms));
   return parse(await call("/v1/notes", { method: "POST", body: form }));
 }
 

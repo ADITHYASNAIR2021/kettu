@@ -6,7 +6,6 @@ export type Prefs = {
   myLang: LangCode | null;
   uiLang: UiLang;
   voice: Voice;
-  keyterms: string[];
   consented: boolean;
   sounds: boolean;
 };
@@ -14,7 +13,7 @@ export type Prefs = {
 const KEY = "kettu:prefs:v1";
 const DEVICE_KEY = "kettu:device:v1";
 
-export const DEFAULT_PREFS: Prefs = { myLang: null, uiLang: "en", voice: "female", keyterms: [], consented: false, sounds: false };
+export const DEFAULT_PREFS: Prefs = { myLang: null, uiLang: "en", voice: "female", consented: false, sounds: false };
 
 function safeGet(key: string): string | null {
   try {
@@ -41,7 +40,6 @@ export function loadPrefs(): Prefs {
       myLang: isLang(p.myLang) ? p.myLang : null,
       uiLang: ["en", "ml", "hi", "bn"].includes(p.uiLang) ? p.uiLang : "en",
       voice: p.voice === "male" ? "male" : "female",
-      keyterms: Array.isArray(p.keyterms) ? p.keyterms.filter((k: unknown) => typeof k === "string").slice(0, 50) : [],
       consented: Boolean(p.consented),
       sounds: p.sounds === true,
     };

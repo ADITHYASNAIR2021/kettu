@@ -86,7 +86,7 @@ export function ConversationMode({ initialJob, onAccepted, onConsumed, onSpent, 
     inFlight.current = true; setUploading(true); setPhase({ kind: "upload" }); setError(null); setAudio(blob);
     const ctl = new AbortController(); controller.current = ctl;
     try {
-      const accepted = await submitNote({ audio: blob, filename: "conversation" + extFor(blob.type), myLang: to, deviceId: device, mode: "listen", keyterms: prefs.keyterms });
+      const accepted = await submitNote({ audio: blob, filename: "conversation" + extFor(blob.type), myLang: to, deviceId: device, mode: "listen" });
       const receipt: PendingJob = { id: accepted.job_id, myLang: to, submittedAt: Date.now(), conversation: { ...config } };
       onAccepted(receipt); setUploading(false);
       if (!ctl.signal.aborted) await poll(receipt, ctl);
@@ -96,7 +96,7 @@ export function ConversationMode({ initialJob, onAccepted, onConsumed, onSpent, 
           ? errorText(t, error.code, error.message) : t("upload_unconfirmed"));
       }
     } finally { inFlight.current = false; setUploading(false); onSpent(); }
-  }, [available, turn, to, device, prefs.keyterms, config, onAccepted, poll, t, onSpent, online, limits?.service_open]);
+  }, [available, turn, to, device, config, onAccepted, poll, t, onSpent, online, limits?.service_open]);
   const rec = useRecorder(submit, 60);
 
   const translate = async (text: string, sourceLang: LangCode, existing: ConversationTurn | null) => {

@@ -129,7 +129,7 @@ export default function KettuApp() {
       try {
         const { job_id, position } = await submitNote({
           audio: blob, filename, myLang: prefs.myLang, deviceId: device,
-          mode: orders ? "orders" : "listen", keyterms: prefs.keyterms,
+          mode: orders ? "orders" : "listen",
         });
         const receipt = { id: job_id, myLang: prefs.myLang, submittedAt: Date.now(), ...(demoId ? { demo: demoId } : {}) };
         remember(receipt); // Keep the accepted receipt even if Back was pressed during the upload.
@@ -149,7 +149,7 @@ export default function KettuApp() {
         refreshLimits(device);
       }
     },
-    [prefs.myLang, prefs.consented, prefs.keyterms, device, orders, t, refreshLimits, online, pending, remember, poll, view.name],
+    [prefs.myLang, prefs.consented, device, orders, t, refreshLimits, online, pending, remember, poll, view.name],
   );
 
   // First load: limits, and pick up any voice note shared from WhatsApp.

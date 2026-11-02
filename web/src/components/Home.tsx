@@ -4,7 +4,7 @@ import { useRef } from "react";
 import type { Limits } from "@/lib/api";
 import { lang } from "@/lib/languages";
 import { useApp } from "./AppContext";
-import { Mic, Speaker, Stop, Upload } from "./Icons";
+import { Mic, Stop, Upload } from "./Icons";
 
 import { mmss, useRecorder } from "./useRecorder";
 
@@ -28,10 +28,11 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, on
   const mine = lang(prefs.myLang);
 
   return (
-    <section className="stack reveal" style={{ gap: 16 }}>
+    <section className="stack home-view">
       <div className="stack" style={{ gap: 6 }}>
         <p className="eyebrow">{mine?.native}</p>
-        <h1 className="display" style={{ fontSize: "clamp(32px, 8.5vw, 42px)" }}>{t("tagline")}</h1>
+        <h1 className="display">{t("home_title")}</h1>
+        <p className="lede">{t("home_hint")}</p>
       </div>
 
       {notice && <div className="alert" role="status">{notice}</div>}
@@ -39,23 +40,6 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, on
       {limits && !limits.service_open && (
         <div className="alert"><strong>{t("waitlist_title")}.</strong> {t("err_service_budget")}</div>
       )}
-
-      <button className="card conversation-entry" disabled={!online || noteBlocked || rec.recording || rec.starting} onClick={onConversation}>
-        <span className="conversation-dots" aria-hidden><i>A</i><i>B</i></span>
-        <span className="stack"><strong>{t("conversation_mode")}</strong><span className="small">{t("conversation_entry")}</span></span>
-        <span aria-hidden>↔</span>
-      </button>
-
-      <div className="card stack">
-        <p className="eyebrow">{t("how_title")}</p>
-        <ol className="steps" style={{ margin: 0, padding: 0, listStyle: "none" }}>
-          <li className="step">{t("how_1")}</li>
-          <li className="step">{t("how_2")}</li>
-          <li className="step">{t("how_3")}</li>
-        </ol>
-      </div>
-
-      <div className="divider">{t("or")}</div>
 
       <div className="stack">
         <input
@@ -73,12 +57,7 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, on
           <Upload /> {t("upload")}
         </button>
 
-        <button className="btn btn-ghost btn-block sample-btn" onClick={onDemo} disabled={!online || noteBlocked || rec.recording || rec.starting}>
-          {t("pick_scenario")}
-        </button>
-        <p className="small" style={{ margin: "-4px 4px 0" }}>{t("demo_intro")}</p>
-
-        <div className="card rec" style={{ padding: 14 }}>
+        <div className="rec home-rec">
           <button
             className="rec-btn"
             data-on={rec.recording}
@@ -103,24 +82,30 @@ export function Home({ onAudio, orders, setOrders, limits, notice, onCompose, on
           )}
         </div>
 
-        <label className="toggle card" style={{ padding: "6px 16px" }}>
+        <label className="toggle home-order">
           <input type="checkbox" checked={orders} onChange={(e) => setOrders(e.target.checked)} />
           <span className="track" />
           <span className="stack" style={{ gap: 0 }}>
-            <strong>🛒 {t("orders_mode")}</strong>
+            <strong>{t("orders_mode")}</strong>
             <span className="small">{t("orders_hint")}</span>
           </span>
         </label>
       </div>
 
-      <div className="divider">{t("or")}</div>
+      <nav className="home-links" aria-label={t("more_options")}>
+        <button className="home-link" disabled={!online || noteBlocked || rec.recording || rec.starting} onClick={onConversation}>
+          <span>{t("conversation_mode")}</span><span aria-hidden>→</span>
+        </button>
+        <button className="home-link" onClick={onCompose} disabled={!online || rec.recording || rec.starting}>
+          <span>{t("compose")}</span><span aria-hidden>→</span>
+        </button>
+        <button className="home-link" onClick={onSaved}><span>{t("saved_cards")}</span><span aria-hidden>→</span></button>
+        <button className="home-link" onClick={onDemo} disabled={!online || noteBlocked || rec.recording || rec.starting}>
+          <span>{t("sample_link")}</span><span aria-hidden>→</span>
+        </button>
+      </nav>
 
-      <button className="btn btn-leaf btn-block" onClick={onCompose} disabled={!online || rec.recording || rec.starting}>
-        <Speaker /> {t("compose")}
-      </button>
-      <button className="btn btn-ghost btn-block" onClick={onSaved}>{t("saved_cards")}</button>
-
-      {limits && <p className="small" style={{ textAlign: "center", margin: 0 }}>{t("left_today", { n: limits.notes_left })}</p>}
+      {limits && <p className="small" style={{ margin: 0 }}>{t("left_today", { n: limits.notes_left })}</p>}
     </section>
   );
 }

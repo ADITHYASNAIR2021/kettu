@@ -40,3 +40,5 @@ Additional browser checks confirmed that changing the interface language after a
 A handoff can be returned to **Check this turn again** without duplicating its history entry. A recording finished while offline or newly blocked by a limit is kept on screen as unsent and requires an explicit Send action; recordings are never silently re-uploaded. Retrying a failed accepted job only polls its receipt.
 
 No new backend endpoint, SQL table, cloud conversation history, account, background reminder, public leaderboard or automatic social sharing is introduced.
+
+The subsequent visual cleanup removes the Home WhatsApp tutorial and Settings personal-word list. Home uses a direct upload/record layout with secondary tools in a plain list. Background texture/rings, card shadows, oversized pill buttons and staggered card entrances have been removed or reduced. Existing personal-word preferences are no longer read or submitted by the web app. Conversation mode, saved cards, sample recordings and opt-in feedback remain available.
